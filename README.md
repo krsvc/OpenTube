@@ -33,16 +33,6 @@ Playback while browsing, and theme settings:
   <img src="docs/images/screenshot-settings.png" alt="OpenTube settings with the Coral theme selected" width="320">
 </p>
 
-Captured on a real console before the v0.16.2 fixes, rather than generated UI previews.
-
-## New in v0.16.2
-
-- App data now lives in `sd:/3ds/opentube/`. On first launch, OpenTube copies the old folder and keeps the original for rollback. Leave enough free space for the copy.
-- Fixed a startup lifecycle bug affecting HOME/suspend handling during the data-folder check on Old 3DS.
-- Fixed the black background around the like icon in comments, replies and community posts.
-
-Read the [data-folder migration notes](Documentation/Data%20root%20migration.md) before updating from v0.16.1. The new migration and icon fix have passed host tests; their real-console checks are still outstanding.
-
 ## Install
 
 You'll need a 3DS or 2DS running [Luma3DS](https://github.com/LumaTeam/Luma3DS), with DSP firmware dumped. You can [dump it from the Rosalina menu](https://3ds.hacks.guide/finalizing-setup.html) or use [DSP1](https://github.com/zoogie/DSP1).
