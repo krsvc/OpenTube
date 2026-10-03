@@ -1,0 +1,15 @@
+static const AVFilter * const filter_list[] = {
+    &ff_af_aecho,
+    &ff_af_aformat,
+    &ff_af_anull,
+    &ff_af_aresample,
+    &ff_af_asetrate,
+    &ff_af_atempo,
+    &ff_af_chorus,
+    &ff_af_superequalizer,
+    &ff_af_volume,
+    &ff_asrc_abuffer,
+    &ff_vsrc_buffer,
+    &ff_asink_abuffer,
+    &ff_vsink_buffer,
+    NULL };

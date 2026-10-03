@@ -1,0 +1,75 @@
+Archives linked into OpenTube v0.16.1 (from the release link map), with SHA-256 and the most frequent GCC producer
+string of their members. Paths without /opt/devkitpro are relative to this repository; /opt/devkitpro paths are the
+installed devkitPro packages listed in Documentation/Build Instructions.md (sources: third_party/README.md).
+Start and runtime objects also linked: 3dsx_crt0.o (devkitarm-crtls 1.2.6,
+sha256 6f1188b6f8b64d36818e95a4cc54a95c857e1a0bd0ca41906081efe6babda895) and crti.o, crtn.o, crtbegin.o, crtend.o
+(devkitarm-gcc 16.1.0-1).
+
+build_id=nogit-c5013471390c  (first 12 hex of sha256(SOURCE_MANIFEST.sha256) = c5013471390cd92b3e98c387c635431320a6e500c7ef0f41afef630f5d9e23c9)
+compiler=arm-none-eabi-gcc (devkitARM) 16.1.0
+makerom=CTR MAKEROM v0.19.0  bannertool=bannertool v1.2.1
+
+linked_archives (sha256, producer):
+  deps/curl-7.82.0-mbedtls2.28.8/lib/libcurl.a
+    sha256=aed4219e51f3e154213a7043a296186ba4ab5d67220ea6fcddee0fda080e7a31
+    producer=153 GCC: (devkitARM) 16.1.0
+  library/FFmpeg/lib/libavcodec.a
+    sha256=3c6a12509a5fa24f1134536ff8b204f2d408d36c5c987697974a739cbd3ccf61
+    producer=103 GCC: (devkitARM) 16.1.0
+  library/FFmpeg/lib/libavfilter.a
+    sha256=7ca96cf30ed04dad3472f447e4fd91d97d230c42b090b058436e86aa7063ce61
+    producer=28 GCC: (devkitARM) 16.1.0
+  library/FFmpeg/lib/libavformat.a
+    sha256=1788511bf2ad08d1364b25fe709ca11d570b6a6f79fa87bbe868f281d5511539
+    producer=33 GCC: (devkitARM) 16.1.0
+  library/FFmpeg/lib/libavutil.a
+    sha256=834f21626420983e64d9dc530081c8136d4138267ae77b812356a7e3d3dc307a
+    producer=85 GCC: (devkitARM) 16.1.0
+  library/FFmpeg/lib/libswresample.a
+    sha256=92a51b16ba206ac2d5bfd237b86a79e14420e307e945275e2364af47f1571df1
+    producer=9 GCC: (devkitARM) 16.1.0
+  library/FFmpeg/lib/libswscale.a
+    sha256=4623d518cc085a1938fd0f8fe44f417793f6cc0cc30f893df45d244f0849a2a5
+    producer=16 GCC: (devkitARM) 16.1.0
+  library/libbrotli/lib/libbrotli.a
+    sha256=2cd6331b992db3f714abff344c1b15c9de7f5d1df357ec292b97255b7079e2a3
+    producer=29 GCC: (devkitARM release 57) 11.2.0
+  library/nghttp2/lib/libnghttp2.a
+    sha256=3e66452736a1453ff5cb25bf696efd96902ffafb961c6ed36816ce4814cacfda
+    producer=26 GCC: (devkitARM release 65) 14.2.0
+  /opt/devkitpro/devkitARM/arm-none-eabi/lib/armv6k/fpu/libc.a
+    sha256=1ebd98e8ac5e98596ed48582212f75dbe510554754e612c1939d87606c593e14
+    producer=
+  /opt/devkitpro/devkitARM/arm-none-eabi/lib/armv6k/fpu/libm.a
+    sha256=4acb6c48c3c5036a9d87b507d7b1dbd0b073f53eef03841824e55541997e8189
+    producer=
+  /opt/devkitpro/devkitARM/arm-none-eabi/lib/armv6k/fpu/libstdc++.a
+    sha256=4bd34f307a4e56f770baa1bb442096a6c777f6e72b80faf27b952cd5fe629419
+    producer=199 GCC: (devkitARM) 16.1.0
+  /opt/devkitpro/devkitARM/arm-none-eabi/lib/armv6k/fpu/libsysbase.a
+    sha256=32c565ca89a761a2bf1c356b1a3e68eacb7e0254298a785bbe0b89f9d2fc4bf2
+    producer=
+  /opt/devkitpro/devkitARM/lib/gcc/arm-none-eabi/16.1.0/armv6k/fpu/libgcc.a
+    sha256=dd3ecae0eb2b14f060511e3fc58a6a7fb15c3060cf81cba06759ef5d015d88ac
+    producer=1719 GCC: (devkitARM) 16.1.0
+  /opt/devkitpro/libctru/lib/libcitro2d.a
+    sha256=f6c5352a838639c486b806b8dc847c74a1a190d98b09eb469d5c30a02ae6542f
+    producer=4 GCC: (devkitARM) 15.2.0
+  /opt/devkitpro/libctru/lib/libcitro3d.a
+    sha256=3f34eff859c1f1e60ebe597b6df9cf5e5e74563d9e64ca01a7b3292fde63016a
+    producer=50 GCC: (devkitARM release 62) 13.2.0
+  /opt/devkitpro/libctru/lib/libctru.a
+    sha256=5e72cd24512b57908545e928cf0a1c1affbb8535f97773d7007be8f10f0e02bc
+    producer=149 GCC: (devkitARM) 15.2.0
+  /opt/devkitpro/portlibs/3ds/lib/libmbedcrypto.a
+    sha256=fadb039fc7220a6227aadefce4d5d6858a5aa890d1e9fc914342cfe26755c3bd
+    producer=79 GCC: (devkitARM release 64) 14.1.0
+  /opt/devkitpro/portlibs/3ds/lib/libmbedtls.a
+    sha256=4b3fac38c1f73b23087e4bc12f16fd7dee3a6bb5e7913c2d9c8e592575c18637
+    producer=11 GCC: (devkitARM release 64) 14.1.0
+  /opt/devkitpro/portlibs/3ds/lib/libmbedx509.a
+    sha256=5c4d768b8c97faec8a41907fa0df77b1f81791e8b3a5233fdd26e2ced4e07425
+    producer=9 GCC: (devkitARM release 64) 14.1.0
+  /opt/devkitpro/portlibs/3ds/lib/libz.a
+    sha256=243b454e62380a2a8d3283cfc2ea7ea92c4d38be5c9950293b46f9a007cf154a
+    producer=15 GCC: (devkitARM) 15.2.0

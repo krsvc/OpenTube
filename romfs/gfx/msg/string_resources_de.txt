@@ -1,0 +1,173 @@
+﻿<TEST>Test</TEST>
+<ON>An</ON>
+<OFF>Aus</OFF>
+<ENABLED>Angeschaltet</ENABLED>
+<DISABLED>Ausgeschaltet</DISABLED>
+<CANCEL>Abbrechen</CANCEL>
+<OK>OK</OK>
+<PLAY>Abspielen</PLAY>
+<PLAYING>Läuft</PLAYING>
+<URL>URL</URL>
+<SETTINGS>Einstellungen</SETTINGS>
+<WATCH_HISTORY>Mediathek</WATCH_HISTORY>
+<REMOVE_HISTORY_ITEM>Aus der Mediathek entfernen</REMOVE_HISTORY_ITEM>
+<REMOVE_ALL_HISTORY>Verlauf entfernen</REMOVE_ALL_HISTORY>
+<REMOVE_ALL_HISTORY_CONFIRM>Bist du dir sicher, dass du deine komplette Mediathek löschen willst?</REMOVE_ALL_HISTORY_CONFIRM>
+<ALL_HISTORY_REMOVED>Mediathek geleert</ALL_HISTORY_REMOVED>
+<SECONDS>sek</SECONDS>
+<GENERAL>Generell</GENERAL>
+<SUGGESTIONS>Vorschläge</SUGGESTIONS>
+<COMMENTS>Kommentare</COMMENTS>
+<CAPTIONS>Untertitel</CAPTIONS>
+<PLAYBACK>Wiedergabe</PLAYBACK>
+<PLAYLIST>Playlist</PLAYLIST>
+<PLAYLISTS>Playlists</PLAYLISTS>
+<RELOAD>Neuladen</RELOAD>
+<RETRY>Nochmal versuchen</RETRY>
+<CLOSE>Schließen</CLOSE>
+<RESET>Zurücksetzen</RESET>
+<VIDEO>Video</VIDEO>
+<COMMUNITY>Beiträge</COMMUNITY>
+<CUR_PLAYING_VIDEO>Gerade läuft</CUR_PLAYING_VIDEO>
+<BUFFERING_PROGRESS>Pufferungs Fortschritt</BUFFERING_PROGRESS>
+<PREAMP>Vorverstärker</PREAMP>
+<OPEN_EQUALIZER>Equalizer öffnen</OPEN_EQUALIZER>
+<SPEED>Schnelligkeit</SPEED>
+<PITCH>Tonhöhe</PITCH>
+<LOADING>Lädt</LOADING>
+<EMPTY>Leer</EMPTY>
+<UNSUPPORTED_IMAGE>Ununterstütztes Bildformat</UNSUPPORTED_IMAGE>
+<COMMENTS_DISABLED>Kommentare deaktiviert</COMMENTS_DISABLED>
+<NO_COMMENTS>Keine Kommentare</NO_COMMENTS>
+<SHOW_MORE>Mehr anzeigen</SHOW_MORE>
+<SHOW_REPLIES>Antworten zeigen</SHOW_REPLIES>
+<SHOW_MORE_REPLIES>Mehr Antworten anzeigen</SHOW_MORE_REPLIES>
+<HIDE_REPLIES>Antworten verstecken</HIDE_REPLIES>
+<CAPTION_BASE_LANGUAGES>Basis Sprachen</CAPTION_BASE_LANGUAGES>
+<CAPTION_TRANSLATION>Auto Übersetzung</CAPTION_TRANSLATION>
+<SELECT_LANGUAGE>Sprache auswählen</SELECT_LANGUAGE>
+<NO_CAPTION>Keine Untertitel</NO_CAPTION>
+<DECODER_TYPE>Decoder Typ</DECODER_TYPE>
+<HW_DECODER>HW Decoder</HW_DECODER>
+<MULTITHREAD_SLICE>Multithread(Slice)</MULTITHREAD_SLICE>
+<MULTITHREAD_FRAME>Multithread(Frame)</MULTITHREAD_FRAME>
+<SINGLE_THREAD>Single Thread</SINGLE_THREAD>
+<WAITING_STATUS>Waiting Status</WAITING_STATUS>
+<CPU_LIMIT>CPU Limit</CPU_LIMIT>
+<FORWARD_BUFFER>Vorwärts Puffer</FORWARD_BUFFER>
+<FORWARD_BUFFER_RATIO>Vorwärts Puffer Rate</FORWARD_BUFFER_RATIO>
+<RAW_FRAME_BUFFER>Roh Frame Puffer</RAW_FRAME_BUFFER>
+<VIDEOS>Videos</VIDEOS>
+<STREAMS>Live</STREAMS>
+<SHORTS>Shorts</SHORTS>
+<INFO>Info</INFO>
+<CHANNEL_DESCRIPTION>Beschreibung</CHANNEL_DESCRIPTION>
+<YOUTUBE_LIKE>Like</YOUTUBE_LIKE>
+<YOUTUBE_DISLIKE>Dislike</YOUTUBE_DISLIKE>
+<SUBSCRIBE>Abonnieren</SUBSCRIBE>
+<SUBSCRIBED>Abonniert</SUBSCRIBED>
+<SUBSCRIBER_COUNT>%0 Abonnenten</SUBSCRIBER_COUNT>
+<UNSUBSCRIBE>Deabonnieren</UNSUBSCRIBE>
+<SUBSCRIBED_CHANNELS>Abos</SUBSCRIBED_CHANNELS>
+<SUBSCRIPTION>Abonnement</SUBSCRIPTION>
+<LOCAL_CHANNELS>Local</LOCAL_CHANNELS>
+<ACCOUNT>Account</ACCOUNT>
+<NEW_VIDEOS>Neue Videos</NEW_VIDEOS>
+<HOME>Home</HOME>
+<NO_VIDEOS>Keine Videos</NO_VIDEOS>
+<NO_RESULTS>Keine Ergebnisse</NO_RESULTS>
+<SEARCH_HINT>Berühre hier oder drücke A um zu suchen</SEARCH_HINT>
+<GOTO_SEARCH>Suchen</GOTO_SEARCH>
+<EXIT_APP>App schließen</EXIT_APP>
+<ABOUT>Über</ABOUT>
+<UPDATE>Update</UPDATE>
+<CHECKING_FOR_UPDATES>Nach Updates suchen...</CHECKING_FOR_UPDATES>
+<FAILED_CHECKING_UPDATES>Fehler beim Suchen von Updates</FAILED_CHECKING_UPDATES>
+<APP_UP_TO_DATE>App ist auf dem neusten Stand</APP_UP_TO_DATE>
+<UPDATES_AVAILABLE>Update verfügbar</UPDATES_AVAILABLE>
+<OVERWRITE_3DSX_CONFIRM>Hinweis : %0 wird überschrieben</OVERWRITE_3DSX_CONFIRM>
+<INSTALL_CIA_CONFIRM>Diese Funktion wird .cias installieren</INSTALL_CIA_CONFIRM>
+<ACCESSING>Zugreifen...</ACCESSING>
+<DOWNLOADING>Herunterladen...</DOWNLOADING>
+<INSTALLING>Installieren...</INSTALLING>
+<UPDATE_SUCCESS>Update wurde erfolgreich installiert</UPDATE_SUCCESS>
+<UPDATE_FAIL>Update fehlgeschlagen</UPDATE_FAIL>
+<EXIT_CONFIRM>Bist du dir sicher, dass du die App schließen möchtest?</EXIT_CONFIRM>
+<NOT_A_YOUTUBE_URL>Das ist keine YouTube URL</NOT_A_YOUTUBE_URL>
+<MY_VIEW_COUNT_WITH_NUMBER>%0 Aufruf(e)</MY_VIEW_COUNT_WITH_NUMBER>
+<BY_LAST_WATCH_TIME>Nach Datum</BY_LAST_WATCH_TIME>
+<BY_MY_VIEW_COUNT>Nach Aufrufen</BY_MY_VIEW_COUNT>
+<LATEST>Neueste</LATEST>
+<POPULAR>Beliebt</POPULAR>
+<OLDEST>Älteste</OLDEST>
+<PLAYLIST_SHORT>List</PLAYLIST_SHORT>
+<SETTINGS_DISPLAY_UI>Anzeige/UI</SETTINGS_DISPLAY_UI>
+<SETTINGS_DATA>Dateien</SETTINGS_DATA>
+<SETTINGS_ADVANCED>Erweitert</SETTINGS_ADVANCED>
+<UI_LANGUAGE>UI Sprache</UI_LANGUAGE>
+<CONTENT_LANGUAGE>Inhalts Sprache</CONTENT_LANGUAGE>
+<LCD_BRIGHTNESS>LCD Helligkeit</LCD_BRIGHTNESS>
+<TIME_TO_TURN_OFF_LCD>Zeit nachdem der Bildschirm ausgeschaltet wird</TIME_TO_TURN_OFF_LCD>
+<NEVER_TURN_OFF>Niemals ausschalten</NEVER_TURN_OFF>
+<ECO_MODE>Eco Modus</ECO_MODE>
+<FULL_SCREEN_MODE>Vollbild Modus</FULL_SCREEN_MODE>
+<SHOW_FULL_DISLIKE>Genaue Anzahl der Dislikes anzeigen</SHOW_FULL_DISLIKE>
+<HIDE_POINTER>Verstecke den Zeiger</HIDE_POINTER>
+<DARK_THEME>Dunkel Modus</DARK_THEME>
+<DISABLE_PULL_TO_REFRESH>Disable pull-to-refresh</DISABLE_PULL_TO_REFRESH>
+<AUTOPLAY>Autoplay</AUTOPLAY>
+<LOOP>Wiederholen</LOOP>
+<ONLY_IN_PLAYLIST>Nur Playlists</ONLY_IN_PLAYLIST>
+<SCROLL_SPEED0>Scrollgeschwindigkeit</SCROLL_SPEED0>
+<SCROLL_SPEED1>Scrollgeschwindigkeit (schnell)</SCROLL_SPEED1>
+<SCROLL_SPEED_THRESHOLD>Beschleunigung des Scrollens um drei Stufen</SCROLL_SPEED_THRESHOLD>
+<COMMUNITY_POST_IMAGE_SIZE>Größe der Bilder im Beiträge Tab</COMMUNITY_POST_IMAGE_SIZE>
+<LINEAR_FILTER>Linearer Video Filter</LINEAR_FILTER>
+<NETWORK_FRAMEWORK>Netzwerk Framework</NETWORK_FRAMEWORK>
+<RESTART_TO_APPLY>App Neustarten um Änderungen zu aktvieren</RESTART_TO_APPLY>
+<VIDEO_SHOW_DEBUG_INFO>Debug-Informationen im Videoplayer anzeigen</VIDEO_SHOW_DEBUG_INFO>
+
+-----DeepL translate-----
+<PLAYER_RESPONSE>Zu verwendende Anwendungsdaten</PLAYER_RESPONSE>
+-----DeepL translate-----
+
+<INFO_DISABLE_PULL_TO_REFRESH>Disables pull-to-refresh in all tabs.\nWhen enabled, shows a reload button\nin the New tab instead.</INFO_DISABLE_PULL_TO_REFRESH>
+<INFO_ECO_MODE>Saves battery by reducing\nscreen update frequency.\nWhen enabled, the screen is\nredrawn only when content changes.</INFO_ECO_MODE>
+<INFO_PLAYER_RESPONSE>Change the spoofed client.\nAndroid VR is used when logged in,\nignoring this setting.</INFO_PLAYER_RESPONSE>
+<INFO_OAUTH>Accesses YouTube using\nAndroid VR client.\nAutomatically falls back to\nunauthenticated Android client\nif videos cannot be played,\nsuch as kids videos.</INFO_OAUTH>
+<OAUTH>YouTube Login</OAUTH>
+<OAUTH_LOGIN>Login to YouTube</OAUTH_LOGIN>
+<OAUTH_LOGOUT>Logout</OAUTH_LOGOUT>
+<OAUTH_STATUS>Login Status</OAUTH_STATUS>
+<OAUTH_NOT_AUTHENTICATED>Not logged in</OAUTH_NOT_AUTHENTICATED>
+<OAUTH_AUTHENTICATED>Logged in</OAUTH_AUTHENTICATED>
+<OAUTH_AUTHENTICATING>Authenticating...</OAUTH_AUTHENTICATING>
+<OAUTH_ERROR>Authentication error</OAUTH_ERROR>
+<OAUTH_DEVICE_CODE>Device Code</OAUTH_DEVICE_CODE>
+<OAUTH_USER_CODE>User Code: %0</OAUTH_USER_CODE>
+<OAUTH_VERIFICATION_URL>Visit: https://google.com/device</OAUTH_VERIFICATION_URL>
+<OAUTH_WAITING>Waiting for authentication...</OAUTH_WAITING>
+<OAUTH_TIMEOUT>Authentication timed out</OAUTH_TIMEOUT>
+<OAUTH_LOGIN_INSTRUCTION>1. Open a web browser\n2. Visit the URL shown\n3. Enter the device code\n4. Authorize the app</OAUTH_LOGIN_INSTRUCTION>
+<OAUTH_TOKEN_WARNING>Teile niemals die Datei oauth_tokens\nmit irgendjemandem. Diese Datei enthält\nZugangsdaten zu deinem YouTube-Konto.</OAUTH_TOKEN_WARNING>
+<SCREEN_TOGGLE_MODE>Bildschirme ausschalten</SCREEN_TOGGLE_MODE>
+<SCREEN_TOGGLE_BOTTOM>Unten</SCREEN_TOGGLE_BOTTOM>
+<SCREEN_TOGGLE_TOP>Oben</SCREEN_TOGGLE_TOP>
+<SCREEN_TOGGLE_BOTH>Beide</SCREEN_TOGGLE_BOTH>
+<NAV_SUBS>Abos</NAV_SUBS>
+<NAV_DOWNLOADS>Downloads</NAV_DOWNLOADS>
+<NAV_YOU>Du</NAV_YOU>
+<THEME>Design</THEME>
+<UP_NEXT>Als Nächstes</UP_NEXT>
+<NOW_PLAYING>Läuft gerade</NOW_PLAYING>
+<IDLE_HINT>Wähle unten ein Video</IDLE_HINT>
+<HINT_OPEN>Öffnen</HINT_OPEN>
+<HINT_BROWSE>Blättern</HINT_BROWSE>
+<HINT_FILTERS>Filter</HINT_FILTERS>
+<HINT_MENU>Menü</HINT_MENU>
+<HINT_BACK>Zurück</HINT_BACK>
+<HINT_PLAY>Abspielen</HINT_PLAY>
+<HINT_PAUSE>Pause</HINT_PAUSE>
+<HINT_STOP>Stopp</HINT_STOP>
+<HINT_FULL_PLAYER>Player</HINT_FULL_PLAYER>
+<HINT_TABS>Tabs</HINT_TABS>

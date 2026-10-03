@@ -1,0 +1,87 @@
+diff -upr curl-7.82.0/lib/connect.c curl-7.82.0-3ds/lib/connect.c
+--- curl-7.82.0/lib/connect.c	2022-03-05 07:18:53.000000000 +0900
++++ curl-7.82.0-3ds/lib/connect.c	2022-03-08 17:06:31.605335700 +0900
+@@ -106,6 +106,9 @@ static void
+ tcpkeepalive(struct Curl_easy *data,
+              curl_socket_t sockfd)
+ {
++  (void) sockfd;
++  infof(data, "SO_KEEPALIVE is not supported on 3DS\n");
++#if 0
+   int optval = data->set.tcp_keepalive?1:0;
+ 
+   /* only set IDLE and INTVL if setting KEEPALIVE is successful */
+@@ -157,6 +160,7 @@ tcpkeepalive(struct Curl_easy *data,
+ #endif
+ #endif
+   }
++#endif
+ }
+ 
+ static CURLcode
+@@ -499,7 +503,7 @@ static CURLcode bindlocal(struct Curl_ea
+ static bool verifyconnect(curl_socket_t sockfd, int *error)
+ {
+   bool rc = TRUE;
+-#ifdef SO_ERROR
++#if 0
+   int err = 0;
+   curl_socklen_t errSize = sizeof(err);
+ 
+diff -upr curl-7.82.0/lib/curl_addrinfo.c curl-7.82.0-3ds/lib/curl_addrinfo.c
+--- curl-7.82.0/lib/curl_addrinfo.c	2022-01-26 18:09:39.000000000 +0900
++++ curl-7.82.0-3ds/lib/curl_addrinfo.c	2022-03-08 17:06:31.608328100 +0900
+@@ -144,9 +144,11 @@ Curl_getaddrinfo_ex(const char *nodename
+     if(!ai->ai_addr || !(ai->ai_addrlen > 0))
+       continue;
+ 
++#if 0 // 3DS socu returns ai_addrlen = 8
+     /* ignore elements with bogus address size */
+     if((size_t)ai->ai_addrlen < ss_size)
+       continue;
++#endif
+ 
+     ca = malloc(sizeof(struct Curl_addrinfo) + ss_size + namelen);
+     if(!ca) {
+diff -upr curl-7.82.0/lib/http_proxy.h curl-7.82.0-3ds/lib/http_proxy.h
+--- curl-7.82.0/lib/http_proxy.h	2022-01-26 18:09:39.000000000 +0900
++++ curl-7.82.0-3ds/lib/http_proxy.h	2022-03-08 17:47:03.551092800 +0900
+@@ -25,6 +25,17 @@
+ #include "curl_setup.h"
+ #include "urldata.h"
+ 
++/* the type we use for storing a single boolean bit */
++#undef BIT
++#ifdef _MSC_VER
++typedef bool bit;
++#define BIT(x) bool x
++#else
++typedef unsigned int bit;
++#define BIT(x) bit x:1
++#endif
++
++
+ #if !defined(CURL_DISABLE_PROXY) && !defined(CURL_DISABLE_HTTP)
+ /* ftp can use this as well */
+ CURLcode Curl_proxyCONNECT(struct Curl_easy *data,
+diff -upr curl-7.82.0/lib/socketpair.c curl-7.82.0-3ds/lib/socketpair.c
+--- curl-7.82.0/lib/socketpair.c	2022-01-26 18:09:39.000000000 +0900
++++ curl-7.82.0-3ds/lib/socketpair.c	2022-03-08 17:06:31.609325400 +0900
+@@ -43,6 +43,7 @@
+ #ifdef HAVE_ARPA_INET_H
+ #include <arpa/inet.h>
+ #endif
++#include <arpa/inet.h>
+ #ifndef INADDR_LOOPBACK
+ #define INADDR_LOOPBACK 0x7f000001
+ #endif /* !INADDR_LOOPBACK */
+diff -upr curl-7.82.0/lib/socketpair.h curl-7.82.0-3ds/lib/socketpair.h
+--- curl-7.82.0/lib/socketpair.h	2022-01-26 18:09:39.000000000 +0900
++++ curl-7.82.0-3ds/lib/socketpair.h	2022-03-08 17:12:59.188678400 +0900
+@@ -30,4 +30,6 @@ int Curl_socketpair(int domain, int type
+ #define Curl_socketpair(a,b,c,d) socketpair(a,b,c,d)
+ #endif
+ 
++#define CURL_DISABLE_SOCKETPAIR 1
++
+ #endif /* HEADER_CURL_SOCKETPAIR_H */

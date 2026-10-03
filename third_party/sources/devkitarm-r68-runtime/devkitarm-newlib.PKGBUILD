@@ -1,0 +1,60 @@
+# Maintainer: Dave Murphy <davem@devkitpro.org>
+
+_realname=newlib
+_target=arm-none-eabi
+
+pkgname=devkitarm-${_realname}
+
+pkgver=4.6.0.20260123
+pkgrel=5
+
+pkgdesc='devkitARM newlib'
+
+arch=('any')
+
+source=(
+    "https://sourceware.org/pub/newlib/newlib-${pkgver}.tar.gz"
+    "https://raw.githubusercontent.com/devkitPro/buildscripts/refs/tags/devkitARM_r67.2/patches/newlib-${pkgver}-${pkgrel}.patch"
+)
+
+groups=('gp32-dev' 'gp2x-dev' 'gba-dev' 'nds-dev' '3ds-dev')
+
+options=(!strip)
+
+export _TOOLPATH=${TOOLPATH:-/opt/devkitpro/devkitARM}
+
+prepare() {
+  patch -p1 -d ${srcdir}/newlib-${pkgver} -i ${srcdir}/newlib-${pkgver}-${pkgrel}.patch
+}
+
+build() {
+
+  export PATH=${_TOOLPATH}/bin:${PATH}
+
+  mkdir -p ${srcdir}/_build_newlib
+  cd ${srcdir}/_build_newlib
+
+  CFLAGS_FOR_TARGET="-O2 -ffunction-sections -fdata-sections" \
+  ${srcdir}/newlib-${pkgver}/configure \
+    --target=${_target} \
+    --prefix=/opt/devkitpro/devkitARM/ \
+    --disable-newlib-supplied-syscalls \
+    --enable-newlib-mb \
+    --disable-newlib-wide-orient \
+
+  make
+
+}
+
+package() {
+
+  cd ${srcdir}/_build_newlib
+  make DESTDIR="$pkgdir" install
+
+  find ${pkgdir}/opt/devkitpro/devkitARM/${_target}/lib \( -name "*.a" -or -name "*.o" \) -exec ${_target}-objcopy -R .comment -R .note -R .debug_info -R .debug_aranges -R .debug_pubnames -R .debug_pubtypes -R .debug_abbrev -R .debug_line -R .debug_str -R .debug_ranges -R .debug_loc '{}' \;
+
+
+}
+
+sha256sums=('6ff27e3bf022666f43f7802255be680eeff722ac181b1725d21e2e8318604ee3'
+            '44edc33674524010c3e8469b6b0cbbc41dbe4c5f00b2a648950b2ab91c3d13fb')

@@ -1,0 +1,32 @@
+file=OpenTube.cia size=5125056
+cia.header_size=0x2020 cia.type=0 cia.version=0
+cia.sizes cert=0xa00 ticket=0x350 tmd=0xb34 content=0x4dc000 meta=0x3ac0 file=0x4e33c0
+ticket.sig_type=0x10004 ticket.issuer=Root-CA00000003-XS0000000c
+ticket.title_id=000400000BF74E00
+ticket.title_version=16385
+tmd.sig_type=0x10004 tmd.issuer=Root-CA00000003-CP0000000b
+tmd.title_id=000400000BF74E00 tmd.title_version=16385 tmd.content_count=1
+tmd.content[0] id=2667A295 index=0 type=0x0 size=0x4dc000
+ncch.partition_id=000400000BF74E00 ncch.program_id=000400000BF74E00
+ncch.product_code=CTR-TYTD
+ncch.flags=0000000001030005 no_crypto=True
+ncch.exheader_size=0x400
+ncch.exefs offset=0x5 size=0x210f (media units)
+ncch.romfs offset=0x2118 size=0x5c8 (media units) present=True
+exheader.app_title=FourthTu exheader.program_id=000400000BF74E00 compress_code=True sd_app=True
+identity.all_title_ids_agree=True (000400000BF74E00)
+ncch.smdh.short_en=OpenTube
+ncch.smdh.long_en=OpenTube
+ncch.smdh.publisher_en=The FourthTube Community
+ncch.exefs.files=.code:0x38d848 banner:0x8e850 icon:0x36c0 logo:0x2000
+ncch.romfs.ivfc_magic=b'IVFC' level3_header_size=0x28 ok=True
+
+file=OpenTube.3dsx size=7018836
+3dsx.header_size=0x2c version=0 flags=0x0 code=0x515074 rodata=0xd4d3c data=0x1be02c bss=0x1bb5b4
+3dsx.smdh offset=0x5f979c size=0x36c0
+3dsx.romfs offset=0x5fce5c present=True
+3dsx.smdh.short_en=OpenTube
+3dsx.smdh.long_en=OpenTube
+3dsx.smdh.publisher_en=The FourthTube Community
+3dsx.romfs.level3_header_size=0x28 ok=True
+

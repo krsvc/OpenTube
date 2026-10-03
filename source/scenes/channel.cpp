@@ -1,0 +1,1285 @@
+#include "headers.hpp"
+#include <vector>
+#include <string>
+#include <set>
+#include <map>
+#include <numeric>
+
+#include "scenes/channel.hpp"
+#include "scenes/video_player.hpp"
+#include "scenes/home.hpp"
+#include "youtube_parser/parser.hpp"
+#include "ui/overlay.hpp"
+#include "ui/colors.hpp"
+#include "ui/ui.hpp"
+#include "network_decoder/thumbnail_loader.hpp"
+#include "util/async_task.hpp"
+#include "util/misc_tasks.hpp"
+#include "data_io/subscription_util.hpp"
+
+#define VIDEOS_MARGIN 6
+#define VIDEOS_VERTICAL_INTERVAL (VIDEO_LIST_THUMBNAIL_HEIGHT + VIDEOS_MARGIN)
+#define LOAD_MORE_MARGIN 30
+#define BANNER_HEIGHT 55
+#define ICON_SIZE 55
+#define TAB_SELECTOR_HEIGHT 20
+#define TAB_SELECTOR_SELECTED_LINE_HEIGHT 3
+#define SUBSCRIBE_BUTTON_WIDTH 90
+#define SUBSCRIBE_BUTTON_HEIGHT 25
+#define SORT_ROW_HEIGHT 28 // the sort selector's row: built and restored by the loaders at the same height
+#define COMMUNITY_POST_MAX_WIDTH (320 - (POST_ICON_SIZE + 2 * SMALL_MARGIN))
+
+#define COMMUNITY_POST_MAX_LINES 100
+#define MAX_THUMBNAIL_LOAD_REQUEST 12
+
+#define TAB_NUM 2
+
+namespace Channel {
+bool thread_suspend = false;
+bool already_init = false;
+bool exiting = false;
+
+int VIDEO_LIST_Y_HIGH = 240;
+
+int cur_video_sort_type = 0; // 0: newest, 1: popular, 2: oldest
+int video_sort_request = -1;
+int cur_streams_sort_type = 0; // 0: newest, 1: popular, 2: oldest
+int streams_sort_request = -1;
+int cur_shorts_sort_type = 0; // 0: newest, 1: popular, 2: oldest
+int shorts_sort_request = -1;
+
+ScrollView *main_view = new ScrollView(0, 0, 320, VIDEO_LIST_Y_HIGH);
+ImageView *banner_view;
+ChannelView *channel_view;
+Tab2View *tab_view;
+SelectorView *video_sort_selector;
+SelectorView *streams_sort_selector;
+SelectorView *shorts_sort_selector;
+// anonymous VerticalListView
+VerticalListView *video_list_view;
+TextView *video_load_more_view;
+VerticalListView *stream_list_view;
+TextView *stream_load_more_view;
+VerticalListView *shorts_list_view;
+TextView *shorts_load_more_view;
+// playlists : Tab2View (if there are playlists loaded) or TextView (if they're not loaded or the channel has no
+// playlist) annonymous VerticalListView an EmptyView for margin
+VerticalListView *community_post_list_view;
+TextView *community_post_load_more_view;
+VerticalListView *info_view;
+
+TextView *load_more_view = (new TextView(0, 0, 320, DEFAULT_FONT_INTERVAL))->set_x_alignment(TextView::XAlign::CENTER);
+float community_post_y = 0; // y coordinate of the upper bound of community posts list, updated every frames, used for
+                            // thumbnail request updating
+
+std::string clicked_url;
+
+std::set<PostView *> community_thumbnail_loaded_list;
+
+Mutex resource_lock;
+std::string cur_channel_url;
+YouTubeChannelDetail channel_info; // only modified from async thread
+std::map<std::string, YouTubeChannelDetail> channel_info_cache;
+}; // namespace Channel
+using namespace Channel;
+
+static bool send_load_request(std::string url);
+static void load_channel(void *);
+static void load_channel_more(void *);
+static void load_channel_stream_more(void *);
+static void load_channel_stream(void *);
+static void load_channel_shorts(void *);
+static void load_channel_shorts_more(void *);
+static void load_channel_playlists(void *);
+static void load_channel_community_posts(void *);
+
+void Channel_init(void) {
+	logger.info("channel/init", "Initializing...");
+	Result_with_string result;
+
+	banner_view = new ImageView(0, 0, 320, BANNER_HEIGHT);
+	channel_view = new ChannelView(0, 0, 320, CHANNEL_ICON_SIZE + SMALL_MARGIN * 2);
+
+	video_sort_selector = (new SelectorView(0, 0, 320, SORT_ROW_HEIGHT, false))
+	                          ->set_texts({(std::function<std::string()>)[]() { return LOCALIZED(LATEST);
+}
+, (std::function<std::string()>)[]() { return LOCALIZED(POPULAR); }
+, (std::function<std::string()>)[]() { return LOCALIZED(OLDEST); }
+},
+	                                      cur_video_sort_type)
+	                          ->set_on_change([](const SelectorView &view) {
+	video_sort_request = cur_video_sort_type = view.selected_button;
+	                          });
+
+    streams_sort_selector = (new SelectorView(0, 0, 320, SORT_ROW_HEIGHT, false))
+	                            ->set_texts({(std::function<std::string()>)[]() { return LOCALIZED(LATEST);
+    }
+    , (std::function<std::string()>)[]() { return LOCALIZED(POPULAR); }
+    , (std::function<std::string()>)[]() { return LOCALIZED(OLDEST); }
+    },
+	                                        cur_streams_sort_type)
+	                            ->set_on_change([](const SelectorView &view) {
+	streams_sort_request = cur_streams_sort_type = view.selected_button;
+	                            });
+
+    shorts_sort_selector = (new SelectorView(0, 0, 320, SORT_ROW_HEIGHT, false))
+	                           ->set_texts({(std::function<std::string()>)[]() { return LOCALIZED(LATEST);
+    }
+    , (std::function<std::string()>)[]() { return LOCALIZED(POPULAR); }
+    , (std::function<std::string()>)[]() { return LOCALIZED(OLDEST); }
+    },
+	                                       cur_shorts_sort_type)
+	                           ->set_on_change([](const SelectorView &view) {
+	shorts_sort_request = cur_shorts_sort_type = view.selected_button;
+	                           });
+
+    video_list_view = (new VerticalListView(0, 0, 320))
+                          ->set_margin(SMALL_MARGIN)
+                          ->enable_thumbnail_request_update(MAX_THUMBNAIL_LOAD_REQUEST, SceneType::CHANNEL);
+    video_load_more_view = (new TextView(0, 0, 320, 0));
+    video_load_more_view
+        ->set_text((std::function<std::string()>)[]() {
+	        return channel_info.error != ""         ? channel_info.error
+	               : channel_info.has_more_videos() ? LOCALIZED(LOADING)
+	                                                : "";
+        })
+        ->set_x_alignment(TextView::XAlign::CENTER)
+        ->set_on_drawn([](const View &) {
+	        if (channel_info.has_more_videos() && channel_info.error == "") {
+		        if (!is_async_task_running(load_channel) && !is_async_task_running(load_channel_more)) {
+			        queue_async_task(load_channel_more, NULL);
+		        }
+	        }
+        });
+    stream_list_view = new VerticalListView(0, 0, 320);
+    stream_list_view->set_margin(SMALL_MARGIN)
+        ->enable_thumbnail_request_update(MAX_THUMBNAIL_LOAD_REQUEST, SceneType::CHANNEL);
+
+    stream_load_more_view = new TextView(0, 0, 320, 0);
+    stream_load_more_view->set_text((std::function<std::string()>)[]() {
+	    return channel_info.error != "" ? channel_info.error : LOCALIZED(LOADING);
+    });
+    stream_load_more_view->set_x_alignment(TextView::XAlign::CENTER);
+    stream_load_more_view->set_on_drawn([](const View &) {
+	    if (channel_info.streams.empty() && !channel_info.streams_loaded && channel_info.error == "") {
+		    if (!is_async_task_running(load_channel) && !is_async_task_running(load_channel_stream)) {
+			    queue_async_task(load_channel_stream, NULL);
+		    }
+	    } else if (channel_info.has_more_streams() && channel_info.error == "") {
+		    if (!is_async_task_running(load_channel) && !is_async_task_running(load_channel_stream_more)) {
+			    queue_async_task(load_channel_stream_more, NULL);
+		    }
+	    }
+    });
+
+    shorts_list_view = new VerticalListView(0, 0, 320);
+    shorts_list_view->set_margin(SMALL_MARGIN)
+        ->enable_thumbnail_request_update(MAX_THUMBNAIL_LOAD_REQUEST, SceneType::CHANNEL);
+
+    shorts_load_more_view = new TextView(0, 0, 320, 0);
+    shorts_load_more_view->set_text((std::function<std::string()>)[]() {
+	    return channel_info.error != "" ? channel_info.error : LOCALIZED(LOADING);
+    });
+    shorts_load_more_view->set_x_alignment(TextView::XAlign::CENTER);
+    shorts_load_more_view->set_on_drawn([](const View &) {
+	    if (channel_info.shorts.empty() && !channel_info.shorts_loaded && channel_info.error == "") {
+		    if (!is_async_task_running(load_channel) && !is_async_task_running(load_channel_shorts)) {
+			    queue_async_task(load_channel_shorts, NULL);
+		    }
+	    } else if (channel_info.has_more_shorts() && channel_info.error == "") {
+		    if (!is_async_task_running(load_channel) && !is_async_task_running(load_channel_shorts_more)) {
+			    queue_async_task(load_channel_shorts_more, NULL);
+		    }
+	    }
+    });
+    community_post_list_view = (new VerticalListView(0, 0, 320));
+    community_post_list_view->set_on_drawn([](View &view) { community_post_y = view.y0; });
+    community_post_load_more_view = (new TextView(0, 0, 320, 0));
+    community_post_load_more_view
+        ->set_text((std::function<std::string()>)[]() {
+	        return channel_info.error == "" && channel_info.has_community_posts_to_load() ? LOCALIZED(LOADING) : "";
+        })
+        ->set_x_alignment(TextView::XAlign::CENTER)
+        ->set_on_drawn([](View &) {
+	        if (channel_info.error == "" && channel_info.has_community_posts_to_load()) {
+		        if (!is_async_task_running(load_channel) && !is_async_task_running(load_channel_community_posts)) {
+			        queue_async_task(load_channel_community_posts, NULL);
+		        }
+	        }
+        });
+    info_view = (new VerticalListView(0, 0, 320));
+    tab_view =
+        (new Tab2View(0, 0, 320))
+            ->set_tab_font_size(0.4)
+            ->set_tab_texts<std::function<std::string()>>(
+                {[]() { return LOCALIZED(VIDEOS); }, []() { return LOCALIZED(STREAMS); },
+                 []() { return LOCALIZED(SHORTS); }, []() { return LOCALIZED(PLAYLISTS); },
+                 []() { return LOCALIZED(COMMUNITY); }, []() { return LOCALIZED(INFO); }})
+            ->set_views(
+                {(new VerticalListView(0, 0, 320))
+                     ->set_views(
+                         {(new HorizontalListView(0, 0, SORT_ROW_HEIGHT))->set_views({video_sort_selector}),
+                          (new RuleView(0, 0, 320, 2)), video_list_view, video_load_more_view}),
+                 (new VerticalListView(0, 0, 320))
+                     ->set_views(
+                         {(new HorizontalListView(0, 0, SORT_ROW_HEIGHT))->set_views({streams_sort_selector}),
+                          (new RuleView(0, 0, 320, 2)), stream_list_view, stream_load_more_view}),
+                 (new VerticalListView(0, 0, 320))
+                     ->set_views(
+                         {(new HorizontalListView(0, 0, SORT_ROW_HEIGHT))->set_views({shorts_sort_selector}),
+                          (new RuleView(0, 0, 320, 2)), shorts_list_view, shorts_load_more_view}),
+                 (new EmptyView(0, 0, 320, 0)),
+                 (new VerticalListView(0, 0, 320))
+                     ->set_views({(new EmptyView(0, 0, 320, SMALL_MARGIN)), community_post_list_view,
+                                  community_post_load_more_view}),
+                 info_view});
+    Channel_resume("");
+    already_init = true;
+    }
+
+    void Channel_exit(void) {
+	    already_init = false;
+	    thread_suspend = false;
+	    exiting = true;
+
+	    resource_lock.lock();
+
+	    delete main_view;
+	    main_view = NULL;
+	    delete banner_view;
+	    banner_view = NULL;
+	    delete channel_view;
+	    channel_view = NULL;
+	    tab_view->recursive_delete_subviews();
+	    delete tab_view;
+	    tab_view = NULL;
+	    video_list_view = NULL;
+	    info_view = NULL;
+	    delete load_more_view;
+	    load_more_view = NULL;
+
+	    resource_lock.unlock();
+
+	    logger.info("search/exit", "Exited.");
+    }
+
+    void Channel_resume(std::string arg) {
+	    if (arg != "" && arg != cur_channel_url) {
+		    send_load_request(arg);
+		    tab_view->selected_tab = 0;
+	    } else {
+		    if (video_sort_selector) {
+			    video_sort_selector->selected_button = cur_video_sort_type;
+		    }
+		    if (streams_sort_selector) {
+			    streams_sort_selector->selected_button = cur_streams_sort_type;
+		    }
+		    if (shorts_sort_selector) {
+			    shorts_sort_selector->selected_button = cur_shorts_sort_type;
+		    }
+	    }
+	    overlay_menu_on_resume();
+	    main_view->on_resume();
+	    thread_suspend = false;
+	    var_need_refresh = true;
+    }
+
+    void Channel_suspend(void) { thread_suspend = true; }
+
+    View *video2view(const YouTubeVideoSuccinct &video) {
+	    return (new SuccinctVideoView(0, 0, 320, VIDEO_LIST_THUMBNAIL_HEIGHT))
+	        ->set_title_lines({video.title})
+	        ->set_thumbnail_url(video.thumbnail_url)
+	        ->set_auxiliary_lines({video.publish_date, video.views_str})
+	        ->set_bottom_right_overlay(video.duration_text)
+	        ->set_get_background_color(View::STANDARD_BACKGROUND)
+	        ->set_on_view_released([video](View &) { clicked_url = video.url; });
+    }
+    View *stream2view(const YouTubeVideoSuccinct &stream) {
+	    return (new SuccinctVideoView(0, 0, 320, VIDEO_LIST_THUMBNAIL_HEIGHT))
+	        ->set_title_lines({stream.title})
+	        ->set_thumbnail_url(stream.thumbnail_url)
+	        ->set_auxiliary_lines({stream.publish_date, stream.views_str})
+	        ->set_bottom_right_overlay(stream.duration_text)
+	        ->set_get_background_color(View::STANDARD_BACKGROUND)
+	        ->set_on_view_released([stream](View &) { clicked_url = stream.url; });
+    }
+
+    View *shorts2view(const YouTubeVideoSuccinct &shorts) {
+	    return (new SuccinctVideoView(0, 0, 320, VIDEO_LIST_THUMBNAIL_HEIGHT))
+	        ->set_title_lines({shorts.title})
+	        ->set_thumbnail_url(shorts.thumbnail_url)
+	        ->set_auxiliary_lines({shorts.publish_date, shorts.views_str})
+	        ->set_bottom_right_overlay("")
+	        ->set_get_background_color(View::STANDARD_BACKGROUND)
+	        ->set_on_view_released([shorts](View &) { clicked_url = shorts.url; });
+    }
+    View *playlist2view(const YouTubePlaylistSuccinct &playlist) {
+	    return (new SuccinctVideoView(0, 0, 320, VIDEO_LIST_THUMBNAIL_HEIGHT))
+	        ->set_title_lines({playlist.title})
+	        ->set_thumbnail_url(playlist.thumbnail_url)
+	        ->set_auxiliary_lines({playlist.video_count_str})
+	        ->set_is_playlist(true)
+	        ->set_get_background_color(View::STANDARD_BACKGROUND)
+	        ->set_on_view_released([playlist](View &) { clicked_url = playlist.url; });
+    }
+    View *get_playlist_categories_tab_view(
+        const std::vector<std::pair<std::string, std::vector<YouTubePlaylistSuccinct>>> &playlist_categories) {
+	    if (playlist_categories.size()) {
+		    Tab2View *res_view = new Tab2View(0, 0, 320);
+
+		    std::vector<std::string> titles;
+		    for (auto playlist_category : playlist_categories) {
+			    titles.push_back(playlist_category.first);
+
+			    VerticalListView *cur_list_view =
+			        (new VerticalListView(0, 0, 320))
+			            ->set_margin(SMALL_MARGIN)
+			            ->enable_thumbnail_request_update(MAX_THUMBNAIL_LOAD_REQUEST, SceneType::CHANNEL);
+			    for (auto playlist : playlist_category.second) {
+				    cur_list_view->views.push_back(playlist2view(playlist));
+			    }
+			    res_view->views.push_back(cur_list_view);
+		    }
+		    res_view->set_tab_texts<std::string>(titles);
+		    res_view->set_tab_font_size(0.4);
+		    res_view->set_lr_tab_switch_enabled(false);
+		    return res_view;
+	    } else {
+		    return (new TextView(0, 0, 320, DEFAULT_FONT_INTERVAL))
+		        ->set_text((std::function<std::string()>)[]() { return LOCALIZED(EMPTY); })
+		        ->set_x_alignment(TextView::XAlign::CENTER);
+	    }
+    }
+    View *community_post_2_view(const YouTubeChannelDetail::CommunityPost &post) {
+	    PostView *res = new PostView(0, 0, 320);
+
+	    auto &cur_content = post.message;
+	    std::vector<std::string> content_lines;
+	    auto itr = cur_content.begin();
+	    while (itr != cur_content.end()) {
+		    if (content_lines.size() >= COMMUNITY_POST_MAX_LINES) {
+			    break;
+		    }
+		    auto next_itr = std::find(itr, cur_content.end(), '\n');
+		    auto tmp = truncate_str(std::string(itr, next_itr), COMMUNITY_POST_MAX_WIDTH,
+		                            COMMUNITY_POST_MAX_LINES - content_lines.size(), 0.5, 0.5);
+		    content_lines.insert(content_lines.end(), tmp.begin(), tmp.end());
+
+		    if (next_itr != cur_content.end()) {
+			    itr = std::next(next_itr);
+		    } else {
+			    break;
+		    }
+	    }
+	    if (post.poll_choices.size()) {
+		    content_lines.push_back("");
+		    for (auto choice : post.poll_choices) {
+			    content_lines.push_back(" - " + choice);
+		    }
+	    }
+
+	    res->set_author_name(post.author_name)
+	        ->set_author_icon_url(post.author_icon_url)
+	        ->set_time_str(post.time)
+	        ->set_upvote_str(post.upvotes_str)
+	        ->set_additional_image_url(post.image_url)
+	        ->set_disable_timestamps(true)
+	        ->set_content_lines(content_lines)
+	        ->set_has_more_replies([]() { return false; });
+
+	    if (post.poll_choices.size()) {
+		    res->lines_shown = content_lines.size();
+	    }
+	    if (post.video.title != "") {
+		    std::string video_url = post.video.url;
+		    res->additional_video_view = (new SuccinctVideoView(0, 0, 320 - POST_ICON_SIZE - SMALL_MARGIN * 2,
+		                                                        VIDEO_LIST_THUMBNAIL_HEIGHT * 0.8));
+		    res->additional_video_view
+		        ->set_title_lines(truncate_str(
+		            post.video.title, res->additional_video_view->get_title_width() - SMALL_MARGIN, 2, 0.5, 0.5))
+		        ->set_thumbnail_url(post.video.thumbnail_url)
+		        ->set_auxiliary_lines({post.video.author})
+		        ->set_bottom_right_overlay(post.video.duration_text)
+		        ->set_get_background_color(View::STANDARD_BACKGROUND)
+		        ->set_on_view_released([video_url](View &view) { clicked_url = video_url; });
+	    }
+
+	    return res;
+    }
+
+    static void load_channel(void *) {
+	    resource_lock.lock();
+	    auto url = cur_channel_url;
+	    YouTubeChannelDetail result;
+	    bool need_loading = false;
+	    if (channel_info_cache.count(url)) {
+		    result = channel_info_cache[url];
+	    } else {
+		    need_loading = true;
+	    }
+	    main_view->set_views({load_more_view});
+	    load_more_view->set_text((std::function<std::string()>)[]() { return LOCALIZED(LOADING); });
+	    resource_lock.unlock();
+
+	    if (need_loading) {
+		    add_cpu_limit(ADDITIONAL_CPU_LIMIT);
+		    result = youtube_load_channel_page(url);
+		    remove_cpu_limit(ADDITIONAL_CPU_LIMIT);
+	    }
+
+	    // wrap and truncate here to avoid taking time in locked state
+	    logger.info("channel", "truncate start");
+	    std::vector<View *> video_views;
+	    for (auto video : result.videos) {
+		    video_views.push_back(video2view(video));
+	    }
+	    std::vector<std::string> description_lines;
+	    {
+		    std::string cur_str;
+		    result.description.push_back('\n');
+		    for (auto c : result.description) {
+			    if (c == '\r') {
+				    continue;
+			    }
+			    if (c == '\n') {
+				    auto tmp = truncate_str(cur_str, 320 - SMALL_MARGIN * 2, 500, 0.5, 0.5);
+				    description_lines.insert(description_lines.end(), tmp.begin(), tmp.end());
+				    cur_str = "";
+			    } else {
+				    cur_str.push_back(c);
+			    }
+		    }
+	    }
+	    View *new_playlist_view = NULL;
+	    if (!result.has_playlists_to_load()) {
+		    new_playlist_view = get_playlist_categories_tab_view(result.playlists);
+	    }
+	    std::vector<View *> new_community_posts_view;
+	    for (auto post : result.community_posts) {
+		    new_community_posts_view.push_back(community_post_2_view(post));
+	    }
+	    logger.info("channel", "truncate end");
+
+	    // update metadata if it's subscribed
+	    if (subscription_is_subscribed(result.id) && result.name != "") {
+		    SubscriptionChannel new_info;
+		    new_info.id = result.id;
+		    new_info.url = result.url;
+		    new_info.name = result.name;
+		    new_info.icon_url = result.icon_url;
+		    new_info.subscriber_count_str = result.subscriber_count_str;
+		    subscription_unsubscribe(result.id);
+		    subscription_subscribe(new_info);
+
+		    misc_tasks_request(TASK_SAVE_SUBSCRIPTION);
+		    var_need_refresh = true;
+	    }
+
+	    resource_lock.lock();
+	    if (exiting) { // app shut down while loading
+		    resource_lock.unlock();
+		    return;
+	    }
+	    channel_info = result;
+	    channel_info_cache[url] = result;
+
+	    // Update sort selector to match loaded content
+	    cur_video_sort_type = channel_info.current_video_sort_type;
+	    if (video_sort_selector) {
+		    video_sort_selector->selected_button = cur_video_sort_type;
+	    }
+	    cur_streams_sort_type = channel_info.current_streams_sort_type;
+	    if (streams_sort_selector) {
+		    streams_sort_selector->selected_button = cur_streams_sort_type;
+	    }
+	    cur_shorts_sort_type = channel_info.current_shorts_sort_type;
+	    if (shorts_sort_selector) {
+		    shorts_sort_selector->selected_button = cur_shorts_sort_type;
+	    }
+
+	    // banner
+	    thumbnail_cancel_request(banner_view->handle);
+	    banner_view->handle = -1;
+	    if (channel_info.banner_url != "") {
+		    banner_view->handle =
+		        thumbnail_request(channel_info.banner_url, SceneType::CHANNEL, 1000, ThumbnailType::VIDEO_BANNER);
+		    banner_view->update_y_range(0, BANNER_HEIGHT);
+	    } else {
+		    banner_view->update_y_range(0, 0);
+	    }
+	    // main channel view
+	    thumbnail_cancel_request(channel_view->icon_handle);
+	    channel_view->set_name(channel_info.name)
+	        ->set_handle(channel_info.handle)
+	        ->set_subscriber_count(channel_info.subscriber_count_str)
+	        ->set_on_subscribe_button_released([](const ChannelView &view) {
+		        bool cur_subscribed = subscription_is_subscribed(channel_info.id);
+		        if (cur_subscribed) {
+			        subscription_unsubscribe(channel_info.id);
+		        } else {
+			        SubscriptionChannel new_channel;
+			        new_channel.id = channel_info.id;
+			        new_channel.url = channel_info.url;
+			        new_channel.name = channel_info.name;
+			        new_channel.icon_url = channel_info.icon_url;
+			        new_channel.subscriber_count_str = channel_info.subscriber_count_str;
+			        subscription_subscribe(new_channel);
+		        }
+		        misc_tasks_request(TASK_SAVE_SUBSCRIPTION);
+		        Home_update_local_channels();
+		        var_need_refresh = true;
+	        })
+	        ->set_get_is_subscribed([]() { return subscription_is_subscribed(channel_info.id); })
+	        ->set_icon_handle(thumbnail_request(channel_info.icon_url, SceneType::CHANNEL, 1001, ThumbnailType::ICON));
+	    // video list
+	    video_list_view->recursive_delete_subviews();
+	    video_list_view->set_views(video_views);
+	    if (result.error != "" || result.has_more_videos()) {
+		    video_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2);
+		    video_load_more_view->set_is_visible(true);
+	    } else {
+		    video_load_more_view->update_y_range(0, 0);
+		    video_load_more_view->set_is_visible(false);
+	    }
+
+	    auto video_tab_view = dynamic_cast<VerticalListView *>(tab_view->views[0]);
+	    if (!channel_info.video_sort_token_newest.empty() || !channel_info.video_sort_token_popular.empty() ||
+	        !channel_info.video_sort_token_oldest.empty()) {
+		    dynamic_cast<HorizontalListView *>(video_tab_view->views[0])->update_y_range(0, SORT_ROW_HEIGHT);
+		    video_tab_view->views[0]->set_is_visible(true);
+		    dynamic_cast<RuleView *>(video_tab_view->views[1])->update_y_range(0, 2);
+		    video_tab_view->views[1]->set_is_visible(true);
+	    } else {
+		    dynamic_cast<HorizontalListView *>(video_tab_view->views[0])->update_y_range(0, 0);
+		    video_tab_view->views[0]->set_is_visible(false);
+		    dynamic_cast<RuleView *>(video_tab_view->views[1])->update_y_range(0, 0);
+		    video_tab_view->views[1]->set_is_visible(false);
+	    }
+
+	    // streams list
+	    stream_list_view->recursive_delete_subviews();
+	    if (result.streams.size() > 0) {
+		    std::vector<View *> stream_views;
+		    for (auto stream : result.streams) {
+			    stream_views.push_back(stream2view(stream));
+		    }
+		    stream_list_view->set_views(stream_views);
+		    if (result.error != "" || result.has_more_streams()) {
+			    stream_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2);
+			    stream_load_more_view->set_is_visible(true);
+			    stream_load_more_view->set_text((std::function<std::string()>)[]() {
+				    return channel_info.error != "" ? channel_info.error : LOCALIZED(LOADING);
+			    });
+		    } else {
+			    stream_load_more_view->update_y_range(0, 0);
+			    stream_load_more_view->set_is_visible(false);
+		    }
+	    } else {
+		    stream_list_view->set_views({});
+		    stream_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2);
+		    stream_load_more_view->set_is_visible(true);
+		    stream_load_more_view->set_text((std::function<std::string()>)[]() {
+			    return channel_info.error != "" ? channel_info.error : LOCALIZED(LOADING);
+		    });
+	    }
+
+	    auto streams_tab_view = dynamic_cast<VerticalListView *>(tab_view->views[1]);
+	    if (!channel_info.streams_sort_token_newest.empty() || !channel_info.streams_sort_token_popular.empty() ||
+	        !channel_info.streams_sort_token_oldest.empty()) {
+		    dynamic_cast<HorizontalListView *>(streams_tab_view->views[0])->update_y_range(0, SORT_ROW_HEIGHT);
+		    streams_tab_view->views[0]->set_is_visible(true);
+		    dynamic_cast<RuleView *>(streams_tab_view->views[1])->update_y_range(0, 2);
+		    streams_tab_view->views[1]->set_is_visible(true);
+	    } else {
+		    dynamic_cast<HorizontalListView *>(streams_tab_view->views[0])->update_y_range(0, 0);
+		    streams_tab_view->views[0]->set_is_visible(false);
+		    dynamic_cast<RuleView *>(streams_tab_view->views[1])->update_y_range(0, 0);
+		    streams_tab_view->views[1]->set_is_visible(false);
+	    }
+
+	    // shorts list
+	    shorts_list_view->recursive_delete_subviews();
+	    if (result.shorts.size() > 0) {
+		    std::vector<View *> shorts_views;
+		    for (auto shorts : result.shorts) {
+			    shorts_views.push_back(shorts2view(shorts));
+		    }
+		    shorts_list_view->set_views(shorts_views);
+		    if (result.error != "" || result.has_more_shorts()) {
+			    shorts_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2);
+			    shorts_load_more_view->set_is_visible(true);
+			    shorts_load_more_view->set_text((std::function<std::string()>)[]() {
+				    return channel_info.error != "" ? channel_info.error : LOCALIZED(LOADING);
+			    });
+		    } else {
+			    shorts_load_more_view->update_y_range(0, 0);
+			    shorts_load_more_view->set_is_visible(false);
+		    }
+	    } else {
+		    shorts_list_view->set_views({});
+		    shorts_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2);
+		    shorts_load_more_view->set_is_visible(true);
+		    shorts_load_more_view->set_text((std::function<std::string()>)[]() {
+			    return channel_info.error != "" ? channel_info.error : LOCALIZED(LOADING);
+		    });
+	    }
+
+	    auto shorts_tab_view = dynamic_cast<VerticalListView *>(tab_view->views[2]);
+	    if (!channel_info.shorts_sort_token_newest.empty() || !channel_info.shorts_sort_token_popular.empty() ||
+	        !channel_info.shorts_sort_token_oldest.empty()) {
+		    dynamic_cast<HorizontalListView *>(shorts_tab_view->views[0])->update_y_range(0, SORT_ROW_HEIGHT);
+		    shorts_tab_view->views[0]->set_is_visible(true);
+		    dynamic_cast<RuleView *>(shorts_tab_view->views[1])->update_y_range(0, 2);
+		    shorts_tab_view->views[1]->set_is_visible(true);
+	    } else {
+		    dynamic_cast<HorizontalListView *>(shorts_tab_view->views[0])->update_y_range(0, 0);
+		    shorts_tab_view->views[0]->set_is_visible(false);
+		    dynamic_cast<RuleView *>(shorts_tab_view->views[1])->update_y_range(0, 0);
+		    shorts_tab_view->views[1]->set_is_visible(false);
+	    }
+
+	    // playlist list
+	    tab_view->views[3]->recursive_delete_subviews();
+	    delete tab_view->views[3];
+	    if (result.has_playlists_to_load()) {
+		    tab_view->views[3] = (new TextView(0, 0, 320, DEFAULT_FONT_INTERVAL * 2))
+		                             ->set_text((std::function<std::string()>)[]() {
+			                             return channel_info.error != "" ? channel_info.error : LOCALIZED(LOADING);
+		                             })
+		                             ->set_x_alignment(TextView::XAlign::CENTER)
+		                             ->set_on_drawn([](const View &) {
+			                             if (channel_info.error == "" && channel_info.has_playlists_to_load()) {
+				                             if (!is_async_task_running(load_channel) &&
+				                                 !is_async_task_running(load_channel_playlists)) {
+					                             queue_async_task(load_channel_playlists, NULL);
+				                             }
+			                             }
+		                             });
+	    } else {
+		    tab_view->views[3] = new_playlist_view; // possible if the channel info is loaded from cache
+	    }
+	    // community post
+	    for (auto view : community_thumbnail_loaded_list) {
+		    view->cancel_all_thumbnail_requests();
+	    }
+	    community_thumbnail_loaded_list.clear();
+	    community_post_list_view->recursive_delete_subviews();
+	    community_post_list_view->set_views(new_community_posts_view);
+	    if (result.has_community_posts_to_load()) {
+		    community_post_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2)->set_is_visible(true);
+	    } else {
+		    community_post_load_more_view->update_y_range(0, 0)->set_is_visible(false);
+	    }
+	    // video info
+	    info_view->recursive_delete_subviews();
+	    info_view->set_views(
+	        {(new TextView(0, 0, 320, MIDDLE_FONT_INTERVAL))
+	             ->set_text((std::function<std::string()>)[]() { return LOCALIZED(CHANNEL_DESCRIPTION); })
+	             ->set_font_size(MIDDLE_FONT_SIZE, MIDDLE_FONT_INTERVAL),
+	         (new RuleView(0, 0, 320, SMALL_MARGIN)),
+	         (new TextView(0, 0, 320, DEFAULT_FONT_INTERVAL * description_lines.size()))
+	             ->set_text_lines(description_lines),
+	         (new EmptyView(0, 0, 320, SMALL_MARGIN * 2))});
+
+	    main_view->set_views({banner_view, channel_view, tab_view});
+	    var_need_refresh = true;
+	    resource_lock.unlock();
+    }
+    static void load_channel_more(void *) {
+	    auto new_result = channel_info;
+	    new_result.load_more_videos();
+
+	    logger.info("channel-c", "truncate start");
+	    std::vector<View *> new_video_views;
+	    for (size_t i = channel_info.videos.size(); i < new_result.videos.size(); i++) {
+		    new_video_views.push_back(video2view(new_result.videos[i]));
+	    }
+	    logger.info("channel-c", "truncate end");
+
+	    resource_lock.lock();
+	    if (exiting) { // app shut down while loading
+		    resource_lock.unlock();
+		    return;
+	    }
+	    channel_info = new_result;
+	    if (new_result.error == "") {
+		    channel_info_cache[channel_info.url_original] = channel_info;
+	    }
+
+	    video_list_view->views.insert(video_list_view->views.end(), new_video_views.begin(), new_video_views.end());
+	    if (channel_info.error != "" || channel_info.has_more_videos()) {
+		    video_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL);
+		    video_load_more_view->set_is_visible(true);
+	    } else {
+		    video_load_more_view->update_y_range(0, 0);
+		    video_load_more_view->set_is_visible(false);
+	    }
+	    var_need_refresh = true;
+	    resource_lock.unlock();
+    }
+    static void load_channel_stream(void *) {
+	    resource_lock.lock();
+	    auto url = cur_channel_url;
+	    resource_lock.unlock();
+
+	    add_cpu_limit(ADDITIONAL_CPU_LIMIT);
+	    YouTubeChannelDetail streams_result = youtube_load_channel_streams_page(url);
+	    remove_cpu_limit(ADDITIONAL_CPU_LIMIT);
+
+	    logger.info("channel-stream", "truncate start");
+	    std::vector<View *> stream_views;
+	    for (auto stream : streams_result.streams) {
+		    stream_views.push_back(stream2view(stream));
+	    }
+	    logger.info("channel-stream", "truncate end");
+
+	    resource_lock.lock();
+	    if (exiting) {
+		    resource_lock.unlock();
+		    return;
+	    }
+
+	    // Update only streams data
+	    channel_info.streams = streams_result.streams;
+	    channel_info.streams_continue_token = streams_result.streams_continue_token;
+	    channel_info.streams_loaded = true;
+	    // Update sort tokens
+	    channel_info.streams_sort_token_newest = streams_result.streams_sort_token_newest;
+	    channel_info.streams_sort_token_popular = streams_result.streams_sort_token_popular;
+	    channel_info.streams_sort_token_oldest = streams_result.streams_sort_token_oldest;
+	    channel_info.current_streams_sort_type = streams_result.current_streams_sort_type;
+	    cur_streams_sort_type = streams_result.current_streams_sort_type;
+	    if (streams_sort_selector) {
+		    streams_sort_selector->selected_button = cur_streams_sort_type;
+	    }
+	    if (streams_result.error == "") {
+		    channel_info_cache[channel_info.url_original] = channel_info;
+	    }
+
+	    stream_list_view->views.insert(stream_list_view->views.end(), stream_views.begin(), stream_views.end());
+	    if (streams_result.error != "" || channel_info.has_more_streams()) {
+		    stream_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2);
+		    stream_load_more_view->set_is_visible(true);
+		    stream_load_more_view->set_text((std::function<std::string()>)[]() {
+			    return channel_info.error != "" ? channel_info.error : LOCALIZED(LOADING);
+		    });
+	    } else {
+		    stream_load_more_view->update_y_range(0, 0);
+		    stream_load_more_view->set_is_visible(false);
+	    }
+
+	    auto streams_tab_view = dynamic_cast<VerticalListView *>(tab_view->views[1]);
+	    if (!channel_info.streams_sort_token_newest.empty() || !channel_info.streams_sort_token_popular.empty() ||
+	        !channel_info.streams_sort_token_oldest.empty()) {
+		    dynamic_cast<HorizontalListView *>(streams_tab_view->views[0])->update_y_range(0, SORT_ROW_HEIGHT);
+		    streams_tab_view->views[0]->set_is_visible(true);
+		    dynamic_cast<RuleView *>(streams_tab_view->views[1])->update_y_range(0, 2);
+		    streams_tab_view->views[1]->set_is_visible(true);
+	    } else {
+		    dynamic_cast<HorizontalListView *>(streams_tab_view->views[0])->update_y_range(0, 0);
+		    streams_tab_view->views[0]->set_is_visible(false);
+		    dynamic_cast<RuleView *>(streams_tab_view->views[1])->update_y_range(0, 0);
+		    streams_tab_view->views[1]->set_is_visible(false);
+	    }
+
+	    var_need_refresh = true;
+	    resource_lock.unlock();
+    }
+    static void load_channel_stream_more(void *) {
+	    if (!stream_list_view || !stream_load_more_view) {
+		    return;
+	    }
+
+	    auto new_result = channel_info;
+	    new_result.load_more_streams();
+
+	    logger.info("channel-stream-more", "truncate start");
+	    std::vector<View *> new_stream_views;
+	    for (size_t i = channel_info.streams.size(); i < new_result.streams.size(); i++) {
+		    new_stream_views.push_back(stream2view(new_result.streams[i]));
+	    }
+	    logger.info("channel-stream-more", "truncate end");
+
+	    resource_lock.lock();
+	    if (exiting) {
+		    resource_lock.unlock();
+		    return;
+	    }
+	    channel_info = new_result;
+	    if (new_result.error == "") {
+		    channel_info_cache[channel_info.url_original] = channel_info;
+	    }
+
+	    stream_list_view->views.insert(stream_list_view->views.end(), new_stream_views.begin(), new_stream_views.end());
+	    if (channel_info.error != "" || channel_info.has_more_streams()) {
+		    stream_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2);
+		    stream_load_more_view->set_is_visible(true);
+	    } else {
+		    stream_load_more_view->update_y_range(0, 0);
+		    stream_load_more_view->set_is_visible(false);
+	    }
+	    var_need_refresh = true;
+	    resource_lock.unlock();
+    }
+    static void load_channel_shorts(void *) {
+	    resource_lock.lock();
+	    auto url = cur_channel_url;
+	    resource_lock.unlock();
+
+	    add_cpu_limit(ADDITIONAL_CPU_LIMIT);
+	    YouTubeChannelDetail shorts_result = youtube_load_channel_shorts_page(url);
+	    remove_cpu_limit(ADDITIONAL_CPU_LIMIT);
+
+	    logger.info("channel-shorts", "truncate start");
+	    std::vector<View *> shorts_views;
+	    for (auto shorts : shorts_result.shorts) {
+		    shorts_views.push_back(shorts2view(shorts));
+	    }
+	    logger.info("channel-shorts", "truncate end");
+
+	    resource_lock.lock();
+	    if (exiting) {
+		    resource_lock.unlock();
+		    return;
+	    }
+	    channel_info.shorts = shorts_result.shorts;
+	    channel_info.shorts_continue_token = shorts_result.shorts_continue_token;
+	    channel_info.shorts_loaded = true;
+	    channel_info.shorts_sort_token_newest = shorts_result.shorts_sort_token_newest;
+	    channel_info.shorts_sort_token_popular = shorts_result.shorts_sort_token_popular;
+	    channel_info.shorts_sort_token_oldest = shorts_result.shorts_sort_token_oldest;
+	    channel_info.current_shorts_sort_type = shorts_result.current_shorts_sort_type;
+	    if (shorts_result.error == "") {
+		    channel_info_cache[channel_info.url_original] = channel_info;
+	    }
+
+	    cur_shorts_sort_type = channel_info.current_shorts_sort_type;
+	    if (shorts_sort_selector) {
+		    shorts_sort_selector->selected_button = cur_shorts_sort_type;
+	    }
+
+	    shorts_list_view->views.insert(shorts_list_view->views.end(), shorts_views.begin(), shorts_views.end());
+	    if (shorts_result.error != "" || channel_info.has_more_shorts()) {
+		    shorts_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2);
+		    shorts_load_more_view->set_is_visible(true);
+		    shorts_load_more_view->set_text((std::function<std::string()>)[]() {
+			    return channel_info.error != "" ? channel_info.error : LOCALIZED(LOADING);
+		    });
+	    } else {
+		    shorts_load_more_view->update_y_range(0, 0);
+		    shorts_load_more_view->set_is_visible(false);
+	    }
+
+	    auto shorts_tab_view = dynamic_cast<VerticalListView *>(tab_view->views[2]);
+	    if (!channel_info.shorts_sort_token_newest.empty() || !channel_info.shorts_sort_token_popular.empty() ||
+	        !channel_info.shorts_sort_token_oldest.empty()) {
+		    dynamic_cast<HorizontalListView *>(shorts_tab_view->views[0])->update_y_range(0, SORT_ROW_HEIGHT);
+		    shorts_tab_view->views[0]->set_is_visible(true);
+		    dynamic_cast<RuleView *>(shorts_tab_view->views[1])->update_y_range(0, 2);
+		    shorts_tab_view->views[1]->set_is_visible(true);
+	    } else {
+		    dynamic_cast<HorizontalListView *>(shorts_tab_view->views[0])->update_y_range(0, 0);
+		    shorts_tab_view->views[0]->set_is_visible(false);
+		    dynamic_cast<RuleView *>(shorts_tab_view->views[1])->update_y_range(0, 0);
+		    shorts_tab_view->views[1]->set_is_visible(false);
+	    }
+
+	    var_need_refresh = true;
+	    resource_lock.unlock();
+    }
+
+    static void load_channel_shorts_more(void *) {
+	    auto new_result = channel_info;
+	    new_result.load_more_shorts();
+
+	    logger.info("channel-shorts-more", "truncate start");
+	    std::vector<View *> new_shorts_views;
+	    for (size_t i = channel_info.shorts.size(); i < new_result.shorts.size(); i++) {
+		    new_shorts_views.push_back(shorts2view(new_result.shorts[i]));
+	    }
+	    logger.info("channel-shorts-more", "truncate end");
+
+	    resource_lock.lock();
+	    if (exiting) {
+		    resource_lock.unlock();
+		    return;
+	    }
+	    channel_info = new_result;
+	    if (new_result.error == "") {
+		    channel_info_cache[channel_info.url_original] = channel_info;
+	    }
+
+	    shorts_list_view->views.insert(shorts_list_view->views.end(), new_shorts_views.begin(), new_shorts_views.end());
+	    if (channel_info.error != "" || channel_info.has_more_shorts()) {
+		    shorts_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2);
+		    shorts_load_more_view->set_is_visible(true);
+	    } else {
+		    shorts_load_more_view->update_y_range(0, 0);
+		    shorts_load_more_view->set_is_visible(false);
+	    }
+	    var_need_refresh = true;
+	    resource_lock.unlock();
+    }
+
+    static void load_channel_playlists(void *) {
+	    auto new_result = channel_info;
+	    new_result.load_playlists();
+
+	    logger.info("channel-p", "truncate start");
+	    auto *playlist_tab_view = get_playlist_categories_tab_view(new_result.playlists);
+	    logger.info("channel-p", "truncate end");
+
+	    resource_lock.lock();
+	    if (exiting) { // app shut down while loading
+		    resource_lock.unlock();
+		    return;
+	    }
+	    channel_info = new_result;
+	    if (new_result.error == "") {
+		    channel_info_cache[channel_info.url_original] = channel_info;
+	    }
+
+	    tab_view->views[3]->recursive_delete_subviews();
+	    delete tab_view->views[3];
+	    tab_view->views[3] = playlist_tab_view;
+
+	    var_need_refresh = true;
+	    resource_lock.unlock();
+    }
+    static void load_channel_community_posts(void *) {
+	    auto new_result = channel_info;
+	    new_result.load_more_community_posts();
+
+	    logger.info("channel-com", "truncate start");
+	    std::vector<View *> new_post_views;
+	    for (size_t i = channel_info.community_posts.size(); i < new_result.community_posts.size(); i++) {
+		    new_post_views.push_back(community_post_2_view(new_result.community_posts[i]));
+	    }
+	    logger.info("channel-com", "truncate end");
+
+	    resource_lock.lock();
+	    if (exiting) { // app shut down while loading
+		    resource_lock.unlock();
+		    return;
+	    }
+	    channel_info = new_result;
+	    if (new_result.error == "") {
+		    channel_info_cache[channel_info.url_original] = channel_info;
+	    }
+
+	    community_post_list_view->views.insert(community_post_list_view->views.end(), new_post_views.begin(),
+	                                           new_post_views.end());
+	    if (new_result.has_community_posts_to_load()) {
+		    community_post_load_more_view->update_y_range(0, DEFAULT_FONT_INTERVAL * 2)->set_is_visible(true);
+	    } else {
+		    community_post_load_more_view->update_y_range(0, 0)->set_is_visible(false);
+	    }
+
+	    var_need_refresh = true;
+	    resource_lock.unlock();
+    }
+    static bool send_load_request(std::string url) {
+	    if (!is_async_task_running(load_channel)) {
+		    remove_all_async_tasks_with_type(load_channel_more);
+		    remove_all_async_tasks_with_type(load_channel_stream);
+		    remove_all_async_tasks_with_type(load_channel_stream_more);
+		    remove_all_async_tasks_with_type(load_channel_shorts);
+		    remove_all_async_tasks_with_type(load_channel_shorts_more);
+		    remove_all_async_tasks_with_type(load_channel_playlists);
+		    remove_all_async_tasks_with_type(load_channel_community_posts);
+
+		    resource_lock.lock();
+		    cur_channel_url = url;
+		    resource_lock.unlock();
+
+		    queue_async_task(load_channel, NULL);
+		    return true;
+	    } else {
+		    return false;
+	    }
+    }
+
+    // OpenTube r13 cue: the visible tab's video list (videos / streams / shorts); other tabs show the channel itself
+    static void channel_cue_update(const Hid_info &key) {
+	    if (!tab_view || main_view->views.size() < 3 || tab_view->selected_tab < 0 ||
+	        tab_view->selected_tab >= (int)tab_view->views.size()) {
+		    return;
+	    }
+	    int t = tab_view->selected_tab;
+	    VerticalListView *list = t == 0 ? video_list_view : t == 1 ? stream_list_view : t == 2 ? shorts_list_view : NULL;
+	    VerticalListView *page = dynamic_cast<VerticalListView *>(tab_view->views[t]);
+	    if (!list || !page || list->views.empty()) {
+		    shell::Preview p;
+		    p.kind = shell::Preview::Kind::CHANNEL;
+		    p.title = channel_info.name;
+		    p.meta = channel_info.subscriber_count_str;
+		    p.thumbnail_url = channel_info.icon_url;
+		    p.round_thumbnail = true;
+		    if (p.title.empty()) {
+			    shell::preview_clear();
+		    } else {
+			    shell::preview_set(p);
+		    }
+		    return;
+	    }
+	    double top = cue::list_top_in(main_view, tab_view) + tab_view->tab_selector_height;
+	    for (auto v : page->views) {
+		    if (v == list) {
+			    break;
+		    }
+		    top += v->get_height() + page->margin;
+	    }
+	    cue::update(list, main_view, top, key);
+    }
+
+    void Channel_draw(void) {
+	    Hid_info key;
+	    Util_hid_query_key_state(&key);
+
+	    thumbnail_set_active_scene(SceneType::CHANNEL);
+
+	    bool video_playing_bar_show = video_is_playing();
+	    VIDEO_LIST_Y_HIGH = shell::content_bottom(video_playing_bar_show);
+	    shell::set_top_hints({{"A", shell::tr("HINT_OPEN", "Open")},
+	                          {"dud", shell::tr("HINT_BROWSE", "Browse")},
+	                          {"L R", shell::tr("HINT_FILTERS", "Filters")},
+	                          {"B", shell::tr("HINT_BACK", "Back")}});
+	    main_view->update_y_range(0, VIDEO_LIST_Y_HIGH);
+
+	    if (var_need_refresh || !var_eco_mode) {
+		    var_need_refresh = false;
+		    Draw_frame_ready();
+		    video_draw_top_screen();
+
+		    Draw_screen_ready(1, DEFAULT_BACK_COLOR);
+
+		    resource_lock.lock();
+		    main_view->draw();
+		    resource_lock.unlock();
+
+		    if (video_playing_bar_show) {
+			    video_draw_playing_bar();
+		    }
+		    draw_overlay_menu(VIDEO_LIST_Y_HIGH);
+
+		    if (Util_expl_query_show_flag()) {
+			    Util_expl_draw();
+		    }
+
+		    if (Util_err_query_error_show_flag()) {
+			    Util_err_draw();
+		    }
+
+		    Draw_touch_pos();
+
+		    Draw_apply_draw();
+	    } else {
+		    gspWaitForVBlank();
+	    }
+
+	    if (Util_err_query_error_show_flag()) {
+		    Util_err_main(key);
+	    } else if (Util_expl_query_show_flag()) {
+		    Util_expl_main(key);
+	    } else {
+		    bool taken = update_overlay_menu(&key);
+
+		    resource_lock.lock();
+
+		    if (taken) { // the shell owns this frame: a held row / mini-player touch ends without its action
+			    main_view->reset_holding_status();
+			    video_cancel_playing_bar_gesture();
+		    }
+		    if (video_playing_bar_show) {
+			    video_update_playing_bar(key);
+		    }
+		    if (!taken) {
+			    main_view->update(key);
+		    }
+		    channel_cue_update(key);
+
+		    // community post thumbnail requests update
+		    if (channel_info.community_posts.size()) {
+			    std::vector<std::pair<float, PostView *>> should_be_loaded;
+			    {
+				    constexpr int LOW = -1000;
+				    constexpr int HIGH = 1240;
+				    float cur_y = community_post_y;
+				    for (size_t i = 0; i < community_post_list_view->views.size(); i++) {
+					    float cur_height = community_post_list_view->views[i]->get_height();
+					    if (cur_y < HIGH && cur_y + cur_height >= LOW) {
+						    auto parent_post_view = dynamic_cast<PostView *>(community_post_list_view->views[i]);
+						    if (cur_y + parent_post_view->get_self_height() >= LOW) {
+							    should_be_loaded.push_back({cur_y, parent_post_view});
+						    }
+						    auto list = parent_post_view->get_reply_pos_list(); // {y offset, reply view}
+						    for (auto j : list) {
+							    float cur_reply_height = j.second->get_height();
+							    if (cur_y + j.first < HIGH && cur_y + j.first + cur_reply_height > LOW) {
+								    should_be_loaded.push_back({cur_y + j.first, j.second});
+							    }
+						    }
+					    }
+					    cur_y += cur_height;
+				    }
+				    if (should_be_loaded.size() > MAX_THUMBNAIL_LOAD_REQUEST) {
+					    int leftover = should_be_loaded.size() - MAX_THUMBNAIL_LOAD_REQUEST;
+					    should_be_loaded.erase(should_be_loaded.begin(), should_be_loaded.begin() + leftover / 2);
+					    should_be_loaded.erase(should_be_loaded.end() - (leftover - leftover / 2),
+					                           should_be_loaded.end());
+				    }
+			    }
+
+			    std::set<PostView *> newly_loading_views, cancelling_views;
+			    for (auto i : community_thumbnail_loaded_list) {
+				    cancelling_views.insert(i);
+			    }
+			    for (auto i : should_be_loaded) {
+				    newly_loading_views.insert(i.second);
+			    }
+			    for (auto i : community_thumbnail_loaded_list) {
+				    newly_loading_views.erase(i);
+			    }
+			    for (auto i : should_be_loaded) {
+				    cancelling_views.erase(i.second);
+			    }
+
+			    for (auto i : cancelling_views) {
+				    i->cancel_all_thumbnail_requests();
+				    community_thumbnail_loaded_list.erase(i);
+			    }
+			    for (auto i : newly_loading_views) {
+				    // Override Google's parameters with ours. Optimized for speed and compression.
+				    if (i->additional_image_url != "") {
+					    i->additional_image_url =
+					        i->additional_image_url.erase(i->additional_image_url.find("=")) + "=-rj-v2-s" +
+					        std::to_string(COMMUNITY_IMAGE_SIZE * 2); // Multiply so the images don't look too grainy
+				    }
+				    i->author_icon_handle =
+				        thumbnail_request(i->author_icon_url, SceneType::CHANNEL, 0, ThumbnailType::ICON);
+				    if (i->additional_image_url != "") {
+					    i->additional_image_handle =
+					        thumbnail_request(i->additional_image_url, SceneType::CHANNEL, 0, ThumbnailType::DEFAULT);
+				    }
+				    if (i->additional_video_view) {
+					    i->additional_video_view->thumbnail_handle =
+					        thumbnail_request(i->additional_video_view->thumbnail_url, SceneType::CHANNEL, 0,
+					                          ThumbnailType::VIDEO_THUMBNAIL);
+				    }
+				    community_thumbnail_loaded_list.insert(i);
+			    }
+
+			    std::vector<std::pair<int, int>> priority_list;
+			    auto priority = [&](float y) {
+				    if (y < 0) {
+					    return 500 + y / 100;
+				    }
+				    if (y < 240) {
+					    return PRIORITY_FOREGROUND + y;
+				    }
+				    return 500 + (240 - y) / 100;
+			    };
+			    for (auto i : should_be_loaded) {
+				    priority_list.push_back({i.second->author_icon_handle, priority(i.first)});
+				    if (i.second->additional_image_handle != -1) {
+					    priority_list.push_back({i.second->additional_image_handle, priority(i.first)});
+				    }
+				    if (i.second->additional_video_view) {
+					    priority_list.push_back({i.second->additional_video_view->thumbnail_handle, priority(i.first)});
+				    }
+			    }
+			    thumbnail_set_priorities(priority_list);
+		    }
+		    resource_lock.unlock();
+
+		    if (clicked_url != "") {
+			    global_intent.next_scene = SceneType::VIDEO_PLAYER;
+			    global_intent.arg = clicked_url;
+			    clicked_url = "";
+		    }
+
+		    // sorting request
+		    if (video_sort_request != -1 && tab_view && tab_view->selected_tab == 0) {
+			    std::string sort_token;
+			    if (video_sort_request == 0) {
+				    sort_token = channel_info.video_sort_token_newest;
+			    } else if (video_sort_request == 1) {
+				    sort_token = channel_info.video_sort_token_popular;
+			    } else if (video_sort_request == 2) {
+				    sort_token = channel_info.video_sort_token_oldest;
+			    }
+
+			    if (!sort_token.empty()) {
+				    video_list_view->recursive_delete_subviews();
+				    video_list_view->views.clear();
+				    channel_info.videos.clear();
+				    channel_info.videos_continue_token = sort_token;
+				    channel_info.current_video_sort_type = video_sort_request;
+				    channel_info_cache[cur_channel_url] = channel_info;
+
+				    if (!is_async_task_running(load_channel_more)) {
+					    queue_async_task(load_channel_more, NULL);
+				    }
+			    }
+
+			    video_sort_request = -1;
+		    }
+
+		    if (streams_sort_request != -1 && tab_view && tab_view->selected_tab == 1) {
+			    std::string sort_token;
+			    if (streams_sort_request == 0) {
+				    sort_token = channel_info.streams_sort_token_newest;
+			    } else if (streams_sort_request == 1) {
+				    sort_token = channel_info.streams_sort_token_popular;
+			    } else if (streams_sort_request == 2) {
+				    sort_token = channel_info.streams_sort_token_oldest;
+			    }
+
+			    if (!sort_token.empty()) {
+				    stream_list_view->recursive_delete_subviews();
+				    stream_list_view->views.clear();
+				    channel_info.streams.clear();
+				    channel_info.streams_continue_token = sort_token;
+				    channel_info.current_streams_sort_type = streams_sort_request;
+				    channel_info_cache[cur_channel_url] = channel_info;
+
+				    if (!is_async_task_running(load_channel_stream_more)) {
+					    queue_async_task(load_channel_stream_more, NULL);
+				    }
+			    }
+
+			    streams_sort_request = -1;
+		    }
+
+		    if (shorts_sort_request != -1 && tab_view && tab_view->selected_tab == 2) {
+			    std::string sort_token;
+			    if (shorts_sort_request == 0) {
+				    sort_token = channel_info.shorts_sort_token_newest;
+			    } else if (shorts_sort_request == 1) {
+				    sort_token = channel_info.shorts_sort_token_popular;
+			    } else if (shorts_sort_request == 2) {
+				    sort_token = channel_info.shorts_sort_token_oldest;
+			    }
+
+			    if (!sort_token.empty()) {
+				    shorts_list_view->recursive_delete_subviews();
+				    shorts_list_view->views.clear();
+				    channel_info.shorts.clear();
+				    channel_info.shorts_continue_token = sort_token;
+				    channel_info.current_shorts_sort_type = shorts_sort_request;
+				    channel_info_cache[cur_channel_url] = channel_info;
+
+				    if (!is_async_task_running(load_channel_shorts_more)) {
+					    queue_async_task(load_channel_shorts_more, NULL);
+				    }
+			    }
+
+			    shorts_sort_request = -1;
+		    }
+
+		    if (key.p_b) {
+			    global_intent.next_scene = SceneType::BACK;
+		    }
+	    }
+    }
