@@ -18,6 +18,7 @@
 #include "ui/ui.hpp"
 #include "util/freeze_diag.hpp"
 #include "system/freeze_watchdog.hpp"
+#include "data_io/data_root.hpp"
 // add here
 
 SceneType global_current_scene;
@@ -45,7 +46,88 @@ void Menu_worker_thread(void *arg);
 			logger.error(DEF_MENU_INIT_STR, #expr ": " + std::to_string(res));                                         \
 	} while (0)
 
-void Menu_init(void) {
+#ifdef DEF_DIAG_BUILD
+// OpenTube v0.16.2 data root admission (data_io/data_root.hpp). Runs after Draw_init() and before the first worker
+// thread, the first app data read or write and the diagnostic log writers. The one-time copy runs here on the main
+// thread (no worker exists yet) with a progress screen that keeps APT (HOME / close) serviced.
+static void Menu_data_root_draw(const std::string &top, const std::string &bottom) {
+	Draw_frame_ready();
+	Draw_screen_ready(0, POCKET_DARK_BACKGROUND);
+	Draw_xy_centered(top, 0, 400, 0, 240, 0.45, 0.45, POCKET_DARK_TEXT);
+	Draw_screen_ready(1, POCKET_DARK_BACKGROUND);
+	Draw_xy_centered(bottom, 0, 320, 0, 240, 0.5, 0.5, POCKET_DARK_TEXT);
+	Draw_apply_draw();
+}
+static bool Menu_data_root_gate(void) {
+	freeze_diag::phase("main:data_root");
+	data_root::Layout layout = {DEF_PREDECESSOR_MAIN_DIR, DEF_DATA_ROOT_STAGE_DIR, DEF_MAIN_DIR};
+	auto mb = [](uint64_t b) { return std::to_string((b + 1024 * 1024 - 1) / (1024 * 1024)); };
+	u64 last_draw = 0;
+	bool drawn = false;
+	auto progress = [&](const data_root::Progress &p) {
+		if (!aptMainLoop()) {
+			return false; // the system asks the app to close: stop at the next chunk
+		}
+		u64 now = osGetTime();
+		if (drawn && now - last_draw < 250) {
+			return true;
+		}
+		drawn = true, last_draw = now;
+		std::string top = p.phase == data_root::Progress::SCANNING
+		                      ? "Checking your OpenTube data in sd:" + DEF_PREDECESSOR_MAIN_DIR + "\n\n" +
+		                            std::to_string(p.done_files) + " files so far"
+		                      : "Copying your OpenTube data to sd:" + DEF_MAIN_DIR + "\n\n" + mb(p.done_bytes) + " / " +
+		                            mb(p.total_bytes) + " MB, " + std::to_string(p.done_files) + " / " +
+		                            std::to_string(p.total_files) + " files";
+		Menu_data_root_draw(top + "\n\nThis happens once. Your old folder stays as it is.\nDon't turn off the "
+		                          "console or remove the SD card.",
+		                    "OpenTube is preparing its data folder.");
+		return true;
+	};
+	data_root::Outcome o = data_root::prepare(data_root::posix_root_fs(), layout, progress);
+	if (o.ready()) {
+		const char *how = o.status == data_root::Status::READY   ? "ready"
+		                  : o.status == data_root::Status::FRESH ? "created"
+		                                                         : "copied from the old folder";
+		logger.info(DEF_MENU_INIT_STR, std::string("data root ") + how + " (" + std::to_string(o.copied_files) +
+		                                   " files, " + std::to_string(o.copied_bytes) + " bytes)");
+		return true;
+	}
+	logger.error(DEF_MENU_INIT_STR, std::string("data root: ") + data_root::block_name(o.block) + ": " + o.detail);
+	std::string message = data_root::user_message(o, layout);
+	u64 since = osGetTime();
+	while (aptMainLoop() && osGetTime() - since < 5 * 60 * 1000) { // bounded: a button, a close request or 5 min
+		hidScanInput();
+		if (hidKeysDown() & (KEY_A | KEY_B | KEY_START)) {
+			break;
+		}
+		Menu_data_root_draw(message, "Press A to close OpenTube.");
+	}
+	return false;
+}
+// start-up refused before any worker or app data consumer: ends exactly what Menu_init() had started; main() then
+// returns without Menu_exit() (which assumes a complete start)
+static void Menu_init_abort(void) {
+	logger.info(DEF_MENU_EXIT_STR, "Start-up stopped before any app data was used: exiting...");
+	unlock_network_state();
+	fsExit();
+	acExit();
+	aptExit();
+	mcuHwcExit();
+	ptmuExit();
+	httpcExit();
+	romfsExit();
+	cfguExit();
+	amExit();
+	ndspExit();
+	sslcExit();
+	socExit();
+	Draw_exit();
+	logger.info(DEF_MENU_EXIT_STR, "Exited.");
+}
+#endif
+
+bool Menu_init(void) {
 	Result_with_string result;
 
 	logger.init();
@@ -83,7 +165,6 @@ void Menu_init(void) {
 	lock_network_state();
 
 	aptSetSleepAllowed(false);
-	set_apt_callback();
 
 	logger.info(DEF_MENU_INIT_STR, "Services initialized.");
 
@@ -111,6 +192,14 @@ void Menu_init(void) {
 	Draw_screen_ready(0, DEF_DRAW_BLACK); // Black prevents flashing.
 	Draw_screen_ready(1, DEF_DRAW_BLACK); // Same here
 	Draw_apply_draw();
+
+#ifdef DEF_DIAG_BUILD
+	// v0.16.2: nothing below may read or write app data (or start a worker) before the data root is admitted
+	if (!Menu_data_root_gate()) {
+		Menu_init_abort();
+		return false;
+	}
+#endif
 
 	Util_expl_init();
 	Extfont_init();
@@ -180,7 +269,12 @@ void Menu_init(void) {
 	freeze_watchdog_start(); // diagnostic only: snapshots thread phases if the main loop stops
 #endif
 
+	// the normal APT callback (system/apt_handler.cpp) only after a complete start: its Old 3DS restore removes its
+	// own CPU limit and applies the smallest remaining one, which needs VideoPlayer_init()'s base limit. The data root
+	// gate's progress / failure screens run aptMainLoop() without it. Menu_exit() removes it.
+	set_apt_callback();
 	logger.info(DEF_MENU_INIT_STR, "Initialized.");
+	return true;
 }
 
 // Taken before the async thread is asked to exit (it cannot have finished before that; threadGetHandle() returns ~0

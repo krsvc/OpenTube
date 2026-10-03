@@ -15,7 +15,33 @@ OpenTube is a fork of [FourthTube](https://github.com/erievs/FourthTube). It kee
 - Save liked videos on your console. These are local bookmarks, not likes on your YouTube account.
 - Check for new OpenTube releases from the settings menu.
 
-This is the first public beta. It works on the maintainer's console, but there are still rough edges. If something breaks, [open an issue](https://github.com/krsvc/OpenTube/issues) with your console model, app version and what happened.
+OpenTube is still in public beta. If something breaks, [open an issue](https://github.com/krsvc/OpenTube/issues) with your console model, app version and what happened.
+
+## Screenshots
+
+Home and offline downloads:
+
+<p>
+  <img src="docs/images/screenshot-home.png" alt="OpenTube home screen" width="320">
+  <img src="docs/images/screenshot-downloads.png" alt="Downloaded videos ready to watch offline" width="320">
+</p>
+
+Playback while browsing, and theme settings:
+
+<p>
+  <img src="docs/images/screenshot-playback.png" alt="Video playing on the upper screen while browsing downloads below" width="320">
+  <img src="docs/images/screenshot-settings.png" alt="OpenTube settings with the Coral theme selected" width="320">
+</p>
+
+Captured on a real console before the v0.16.2 fixes, rather than generated UI previews.
+
+## New in v0.16.2
+
+- App data now lives in `sd:/3ds/opentube/`. On first launch, OpenTube copies the old folder and keeps the original for rollback. Leave enough free space for the copy.
+- Fixed a startup lifecycle bug affecting HOME/suspend handling during the data-folder check on Old 3DS.
+- Fixed the black background around the like icon in comments, replies and community posts.
+
+Read the [data-folder migration notes](Documentation/Data%20root%20migration.md) before updating from v0.16.1. The new migration and icon fix have passed host tests; their real-console checks are still outstanding.
 
 ## Install
 
@@ -61,17 +87,21 @@ Tap **?** in the player's tab bar for the controls list. You can also close shee
 
 ### Testing so far
 
-The CIA was checked on real hardware and accepted for normal use. The earlier build also passed login, video, audio, seeking and exit checks; the release build differs only in compile-time file paths. That isn't a full regression test. [Build and release details](Documentation/v0.16.1/README.md).
+Version 0.16.1 was checked on real hardware and accepted for normal use. Its earlier build also passed login, video, audio, seeking and exit checks; the release differed only in compile-time file paths. That wasn't a full regression test. [v0.16.1 build details](Documentation/v0.16.1/README.md).
+
+Version 0.16.2 passed the focused data-folder, startup and comment-icon host tests, plus the binary/package checks. Its migration, HOME/suspend behavior and corrected icons still need confirmation on a real console. [v0.16.2 build details](Documentation/v0.16.2/README.md).
 
 ### Updates
 
 Open **Settings > Update** to check for a newer release. The updater checks the CIA's checksum, title ID and version before asking you to install it. Updating between public releases hasn't been tested yet, so manual installation is the fallback.
 
-A build that already reports version 0.16.1 won't offer this same version as an update. To replace a development build with the published one, install the CIA manually.
+A build that already reports version 0.16.2 won't offer this same version as an update. To replace a development build with the published one, install the CIA manually.
 
 ### Saved data
 
-OpenTube uses `sd:/3ds/FourthTubeTest/` for settings, history, subscriptions, local likes, downloads and update staging. This is separate from FourthTube's data folder. Uninstalling the app doesn't remove it.
+From version 0.16.2, OpenTube keeps settings, history, subscriptions, local likes, your login, downloads and update staging in `sd:/3ds/opentube/`. This is separate from FourthTube's data folder. Uninstalling the app doesn't remove it.
+
+Version 0.16.1 and older used `sd:/3ds/FourthTubeTest/`. The first start of 0.16.2 copies that folder to `sd:/3ds/opentube/` once (with a progress screen) and leaves the old folder exactly as it was. If 0.16.1 is reinstalled, it still finds its old data there. Changes you make in 0.16.2 aren't copied back to it. If the copy fails, OpenTube stops before loading app data; an unfinished copy may remain, but the old folder is untouched. See [Data folder move](Documentation/Data%20root%20migration.md).
 
 The app keeps small diagnostic logs on the SD card and doesn't upload them. If you sign into YouTube, its login tokens are also stored on the SD card.
 
@@ -79,7 +109,7 @@ The app keeps small diagnostic logs on the SD card and doesn't upload them. If y
 
 Title ID: `000400000BF74E00`. Installing this CIA replaces OpenTube / FourthTube Test builds with the same ID. It can sit alongside the original FourthTube app.
 
-Some internal labels still say "Beta 34.1 Test", and the About screen still links to FourthTube. The release version is 0.16.1. Some unsupported symbols and emoji appear as a `<?>` box.
+Some internal labels still say "Beta 34.1 Test", and the About screen still links to FourthTube. The current release is 0.16.2. Some unsupported symbols and emoji appear as a `<?>` box.
 
 </details>
 

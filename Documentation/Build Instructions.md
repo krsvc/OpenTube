@@ -5,7 +5,7 @@ git and then checks the result. The plain `make` target is the upstream FourthTu
 
 ## Requirements
 
-The v0.16.1 release was built with these devkitPro pacman packages:
+The v0.16.1 and v0.16.2 releases were built with these devkitPro pacman packages:
 
 - devkitARM r68-1: devkitarm-gcc 16.1.0-1, devkitarm-binutils 2.46.0-1, devkitarm-newlib 4.6.0.20260123-5,
   devkitarm-crtls 1.2.6-1, devkitarm-rules 1.6.0-4
@@ -50,7 +50,23 @@ You can override it with `OPENTUBE_BUILD_ID`. The v0.16.1 release has the build 
 SHA-256 of `Documentation/v0.16.1/SOURCE_MANIFEST.sha256` (see the README in that folder).
 
 The CIA title version comes from `OPENTUBE_VERSION_MINOR` / `OPENTUBE_VERSION_MICRO` in the Makefile
-(title version = MINOR << 10 | MICRO; v0.16.1 = 16385).
+(title version = MINOR << 10 | MICRO; v0.16.1 = 16385, v0.16.2 = 16386).
+
+Host tests for the v0.16.2 data folder move (clang++ only, no devkitARM) are described in
+[Data root migration.md](Data%20root%20migration.md):
+
+    TEST_OUT_DIR=<fresh folder> sh tests/host/run_data_root.sh
+
+Keep the test output path short because the migration helper limits complete paths to 250 bytes. The comment-icon
+regression builds the real shared PostView painter against a draw recorder:
+
+    TEST_OUT_DIR=<another fresh folder> sh tests/host/run_post_like.sh
+
+The test binary reports its own exit status. To check it directly after the runner:
+
+    <another fresh folder>/green/test_post_like
+
+For the exact v0.16.2 compiled-input hashes and verification limits, see [v0.16.2/README.md](v0.16.2/README.md).
 
 ## 2. FFmpeg (included as source and as built archives)
 

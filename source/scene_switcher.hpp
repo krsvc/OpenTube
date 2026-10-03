@@ -26,7 +26,9 @@ struct Intent {
 extern SceneType global_current_scene;
 extern Intent global_intent;
 
-void Menu_init(void);
+// false: start-up was refused (OpenTube data root, data_io/data_root.hpp) and everything it started has already ended;
+// main() returns at once
+bool Menu_init(void);
 
 // exit request -> wait -> commit (main.cpp): Menu_exit() tears services down and main() returns (the runtime then
 // unmaps the heap) only after every download / stream resolution owner has really ended

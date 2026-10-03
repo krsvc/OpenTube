@@ -1,4 +1,5 @@
 #include "ui/views/specialized/post.hpp"
+#include "ui/modern.hpp"
 #include "network_decoder/thumbnail_loader.hpp"
 #include "util/log.hpp"
 #include "util/timestamp_parser.hpp"
@@ -77,7 +78,8 @@ void PostView::draw_() const {
 		}
 		cur_y += SMALL_MARGIN;
 
-		Draw_texture(var_texture_thumb_up[var_night_mode], content_x_pos(), cur_y, 16, 16);
+		// vector icon centered in the same 16x16 slot (thumb_up.t3x draws as an opaque square on the themed sheets)
+		modern::icon(modern::Icon::LIKE, content_x_pos() + 8, cur_y + 8, 16, LIGHT1_TEXT_COLOR);
 		Draw(upvote_str, content_x_pos() + 16 + SMALL_MARGIN, cur_y + 1, 0.44, 0.44, LIGHT1_TEXT_COLOR);
 		cur_y += 16 + SMALL_MARGIN;
 

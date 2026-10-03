@@ -140,7 +140,7 @@ std::map<std::string, YouTubeVideoDetail> video_info_cache;
 int video_retry_left = 0;
 
 // --- playback diagnostics / bounded recovery (network_decoder/playback_diag.hpp) -----------------
-// Log file: DEF_PLAYBACK_DIAG_LOG_PATH (/3ds/FourthTubeTest/playback_diag.log in the diag build),
+// Log file: DEF_PLAYBACK_DIAG_LOG_PATH (/3ds/opentube/playback_diag.log in the diag build),
 // ring of 48 records, <= 400 bytes each, rewritten only from the decode thread at failure points.
 struct DiagMutexLock : playback_diag::Lock {
 	Mutex m;

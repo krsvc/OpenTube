@@ -2,7 +2,9 @@
 #include "util/freeze_diag.hpp"
 
 int main() {
-	Menu_init();
+	if (!Menu_init()) {
+		return 0; // start-up refused before any worker or app data use; Menu_init() already ended what it started
+	}
 
 	// Main loop
 	while (aptMainLoop()) {

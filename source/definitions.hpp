@@ -2,9 +2,12 @@
 
 // settings
 #ifdef DEF_DIAG_BUILD
-// Diagnostic test build ("FourthTube Test", `make diag`): isolated data directory so the
-// original app's settings / history / subscriptions / tokens are never touched.
-#define DEF_MAIN_DIR (std::string) "/3ds/FourthTubeTest/"
+// OpenTube (`make diag`, the release build): its own data directory, separate from the original app's. v0.16.2 moved
+// it from /3ds/FourthTubeTest/, which is only read once by the start-up copy (data_io/data_root.hpp) and never changed;
+// /3ds/opentube.partial/ holds that copy until it is complete.
+#define DEF_MAIN_DIR (std::string) "/3ds/opentube/"
+#define DEF_PREDECESSOR_MAIN_DIR (std::string) "/3ds/FourthTubeTest/"
+#define DEF_DATA_ROOT_STAGE_DIR (std::string) "/3ds/opentube.partial/"
 #else
 #define DEF_MAIN_DIR (std::string) "/3ds/FourthTube/"
 #endif
@@ -26,7 +29,7 @@
 #ifndef OPENTUBE_VERSION_MAJOR
 #define OPENTUBE_VERSION_MAJOR 0
 #define OPENTUBE_VERSION_MINOR 16
-#define OPENTUBE_VERSION_MICRO 1
+#define OPENTUBE_VERSION_MICRO 2
 #endif
 #define GITHUB_URL std::string("https://github.com/erievs/FourthTube")
 
