@@ -1,6 +1,7 @@
 #ifdef DEF_DIAG_BUILD
 // Diagnostic builds only (Makefile: -Wl,--wrap=__system_allocateHeaps when DIAG=1). Restores the heap split of the
 // bundled libctru fork that upstream builds run with; libctru 2.7.0 then maps the heaps with these sizes.
+// For old 3DS with 96MB mode: uses more conservative 20 MiB / 40 MiB split to reduce crashes.
 // Runs from __libctru_init before libc/C++ initialisation: no allocation, no libc calls.
 #include <3ds.h>
 #include "system/heap_split.hpp"
@@ -22,8 +23,9 @@ void __wrap___system_allocateHeaps(void) {
 		svcCloseHandle(reslimit);
 		// on any failure leave both sizes 0: the real allocateHeaps then applies libctru's own split
 		if (R_SUCCEEDED(rc) && max_commit > cur_commit) {
-			heap_split::split((u32)(max_commit - cur_commit) & ~0xFFFu, heap_split::FORK_MAX_HEAP,
-			                  heap_split::FORK_MAX_LINEAR, &__ctru_heap_size, &__ctru_linear_heap_size);
+			// Use old 3DS optimized split: 20 MiB heap, 40 MiB linear
+			heap_split::split((u32)(max_commit - cur_commit) & ~0xFFFu, heap_split::OLD3DS_MAX_HEAP,
+			                  heap_split::OLD3DS_MAX_LINEAR, &__ctru_heap_size, &__ctru_linear_heap_size);
 		}
 	}
 	__real___system_allocateHeaps();

@@ -5,12 +5,15 @@
 // Upstream FourthTube links the bundled libctru fork (library/libctru), whose allocateHeaps.o uses 30 MiB / 50 MiB
 // where libctru 2.7.0 uses 24 MiB / 32 MiB (same code, only these two constants differ). On a New 3DS in 124 MB mode
 // the 2.7.0 split leaves ~18 MiB less linear memory (mvdstd work buffer, mvd output frame, textures, ndsp).
+// For old 3DS with 96MB mode: use more conservative 24 MiB / 32 MiB split to reduce crashes.
 // Diagnostic builds link libctru 2.7.0 (ABI pairing) and restore the fork's split, see heap_split.cpp.
 namespace heap_split {
 constexpr uint32_t FORK_MAX_HEAP = 30 << 20;       // fork allocateHeaps.o: 0x1e00000
 constexpr uint32_t FORK_MAX_LINEAR = 50 << 20;     // fork allocateHeaps.o: 0x3200000
 constexpr uint32_t LIBCTRU_MAX_HEAP = 24 << 20;    // libctru 2.7.0 allocateHeaps.o: 0x1800000
 constexpr uint32_t LIBCTRU_MAX_LINEAR = 32 << 20;  // libctru 2.7.0 allocateHeaps.o: 0x2000000
+constexpr uint32_t OLD3DS_MAX_HEAP = 20 << 20;     // Old 3DS 96MB mode: more conservative 20 MiB heap
+constexpr uint32_t OLD3DS_MAX_LINEAR = 40 << 20;   // Old 3DS 96MB mode: 40 MiB linear heap
 
 // remaining: free application memory, page aligned (what allocateHeaps computes from the COMMIT resource limit)
 inline void split(uint32_t remaining, uint32_t max_heap, uint32_t max_linear, uint32_t *heap, uint32_t *linear) {
